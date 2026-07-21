@@ -527,7 +527,12 @@ window.__FB = {
   }
 };
 // Surface redirect-login errors if any
-try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){}
+try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){
+  console.error('A31: init Firebase gagal —', e && (e.message||e));
+  window.__FB_INIT_ERROR = String(e && (e.message||e));
+}
+// Tandai bahwa modul Firebase SUDAH selesai dimuat (dipakai app untuk deteksi mobile race).
+window.__FB_MODULE_LOADED = true;
 </script>
 
 <script>
@@ -684,6 +689,54 @@ function migrateFolders(){
 
 // Called once user is known. Loads cache instantly, then subscribes to realtime DB.
 let __remoteArrived=false;   // apakah snapshot pertama dari server sudah datang?
+let __boundToFirebase=false; // sudah subscribe ke Firebase?
+
+// Tunggu sampai modul Firebase (window.__FB) selesai dimuat.
+// PENTING untuk mobile: SDK dari CDN gstatic bisa selesai LEBIH LAMBAT daripada
+// script app ini, sehingga tanpa menunggu, HP salah masuk mode "Lokal".
+function whenFirebaseReady(cb){
+  let tries=0;
+  (function poll(){
+    if(window.__FB && typeof window.__FB.configured!=='undefined'){ cb(window.__FB.configured); return; }
+    if(tries++ > 100){ cb(false); return; }   // ~10 dtk; menyerah → mode lokal
+    setTimeout(poll, 100);
+  })();
+}
+
+function bindFirebase(uid){
+  if(__boundToFirebase) return;
+  __boundToFirebase=true;
+  window.__FB.bind(uid, (remote)=>{
+    applyingRemote=true;
+    const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
+    if(hasRemoteBoard){
+      // Data server ada → pakai itu (menang atas cache lokal).
+      hydrate(remote);
+      __remoteArrived=true;
+      writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+      applyingRemote=false;
+      setSync('saved');
+      render();
+    } else {
+      // Server benar-benar KOSONG (belum pernah ada board).
+      // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
+      if(!__remoteArrived){
+        __remoteArrived=true;
+        if(!Array.isArray(S.tasks) || S.tasks.length===0){
+          if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
+        }
+        applyingRemote=false;   // izinkan push berikutnya
+        pushRemote();           // tulis isi awal ke server
+        writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+        setSync('saved');
+        render();
+      } else {
+        applyingRemote=false;
+      }
+    }
+  });
+}
+
 async function startSync(uid){
   CURRENT_UID = uid;
   // 1) instant paint from local cache (offline-first) — HANYA untuk tampilan awal.
@@ -693,40 +746,16 @@ async function startSync(uid){
   render();
   if(new URLSearchParams(location.search).get('add')==='1'){ setTimeout(()=>{ try{ openAddTask(new Event('click')); }catch(e){} }, 300); }
 
-  // 2) subscribe to Firebase; remote SELALU sumber kebenaran begitu tiba.
-  if(window.__FB && window.__FB.configured){
-    window.__FB.bind(uid, (remote)=>{
-      applyingRemote=true;
-      const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
-      if(hasRemoteBoard){
-        // Data server ada → pakai itu (menang atas cache lokal).
-        hydrate(remote);
-        __remoteArrived=true;
-        writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
-        applyingRemote=false;
-        setSync('saved');
-        render();
-      } else {
-        // Server benar-benar KOSONG (belum pernah ada board).
-        // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
-        if(!__remoteArrived){
-          __remoteArrived=true;
-          if(!Array.isArray(S.tasks) || S.tasks.length===0){
-            if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
-          }
-          applyingRemote=false;   // izinkan push berikutnya
-          pushRemote();           // tulis isi awal ke server
-          writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
-          setSync('saved');
-          render();
-        } else {
-          applyingRemote=false;
-        }
-      }
-    });
-  } else {
-    setSync('error'); // no config -> local-only mode
-  }
+  // 2) subscribe to Firebase — TUNGGU modulnya siap dulu (kritikal untuk mobile).
+  setSync('saving');  // tampilkan "Menyimpan…" selagi menunggu koneksi
+  whenFirebaseReady((configured)=>{
+    if(configured){
+      try{ bindFirebase(uid); }
+      catch(e){ console.warn('bindFirebase gagal:', e); setSync('error'); }
+    } else {
+      setSync('error'); // tak ada config / modul gagal → mode lokal
+    }
+  });
 }
 
 let saveTimer=null;
