@@ -497,7 +497,7 @@ const firebaseConfig = {
 };
 
 const CONFIGURED = !firebaseConfig.apiKey.startsWith("GANTI");
-window.__BUILD = 'sync-fix-2026-07-21b';   // penanda build; cek di console: __BUILD
+window.__BUILD = 'sync-fix-2026-07-22-folders';   // penanda build; cek di console: __BUILD
 console.log('[A31] build', window.__BUILD, 'configured=', CONFIGURED);
 let fbApp, fbAuth, fbDb, fbUser=null, dbRef=null, unsub=null;
 
@@ -704,13 +704,21 @@ function hydrate(d){
   // sehingga field seperti `subtasks`/`tags` bisa hilang (undefined) dan
   // membuat render() crash saat membaca .length. Normalisasi di sini.
   const arr = v => Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
-  S.folders = (d.folders && (d.folders.length || Object.keys(d.folders).length)) ? arr(d.folders) : S.folders;
+  S.folders = (d.folders && (d.folders.length || Object.keys(d.folders).length)) ? arr(d.folders).map(normalizeFolder).filter(Boolean) : S.folders;
   S.tasks   = arr(d.tasks).map(normalizeTask).filter(Boolean);
   S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
 }
 // Pastikan setiap task punya field yang diharapkan render() (anti-undefined).
+function normalizeFolder(f){
+  if(!f || typeof f!=='object' || !f.id) return null;
+  // Firebase menghapus `parentId: null` saat menyimpan. Folder INDUK jadi
+  // kehilangan parentId (undefined). Kembalikan ke null agar dikenali sebagai grup.
+  if(!('parentId' in f) || f.parentId===undefined) f.parentId = null;
+  if(typeof f.name!=='string') f.name = f.name==null ? 'Folder' : String(f.name);
+  return f;
+}
 function normalizeTask(t){
   if(!t || typeof t!=='object') return null;
   t.subtasks = Array.isArray(t.subtasks) ? t.subtasks
