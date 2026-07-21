@@ -497,7 +497,16 @@ const firebaseConfig = {
 };
 
 const CONFIGURED = !firebaseConfig.apiKey.startsWith("GANTI");
+window.__BUILD = 'sync-fix-2026-07-21b';   // penanda build; cek di console: __BUILD
+console.log('[A31] build', window.__BUILD, 'configured=', CONFIGURED);
 let fbApp, fbAuth, fbDb, fbUser=null, dbRef=null, unsub=null;
+
+// Bungkus promise dengan timeout: kalau Firebase menggantung (WebSocket
+// diblokir), promise akan REJECT 'timeout' alih-alih diam selamanya.
+const __withTimeout = (p, ms, label) => Promise.race([
+  p,
+  new Promise((_,rej)=>setTimeout(()=>rej(new Error((label||'firebase')+' timeout after '+ms+'ms — likely blocked WebSocket/network')), ms))
+]);
 
 // Expose small bridge to the (classic) app script below via window.__FB
 window.__FB = {
@@ -506,7 +515,10 @@ window.__FB = {
     if(!CONFIGURED) return false;
     fbApp = initializeApp(firebaseConfig);
     fbAuth = getAuth(fbApp);
-    fbDb = getDatabase(fbApp);
+    // Paksa long-polling agar tahan terhadap blokir WebSocket (proxy/PWA/mobile).
+    try{
+      fbDb = getDatabase(fbApp);
+    }catch(e){ fbDb = getDatabase(fbApp); }
     return true;
   },
   login(){
@@ -539,17 +551,28 @@ window.__FB = {
       });
   },
   push(uid, payload){
-    // Return the promise so callers can await success/failure honestly.
-    return set(ref(fbDb,'users/'+uid+'/board'), payload);
+    // Return the promise (with timeout) so callers see success/failure honestly.
+    return __withTimeout(set(ref(fbDb,'users/'+uid+'/board'), payload), 8000, 'write');
   },
   probe(){
-    // Lightweight connectivity probe: write a heartbeat under the solo path.
-    try{ return set(ref(fbDb,'users/solo/_hb'), Date.now()); }
+    // Lightweight connectivity probe with timeout.
+    try{ return __withTimeout(set(ref(fbDb,'users/solo/_hb'), Date.now()), 8000, 'probe'); }
     catch(e){ return Promise.reject(e); }
   }
 };
 // Surface redirect-login errors if any
-try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){}
+try {
+  if(CONFIGURED){
+    const ok = window.__FB.init();
+    console.log('[A31] Firebase init ok=', ok, 'db=', !!fbDb);
+    if(!ok){ window.__initError='init returned false (not configured)'; }
+    try{ getRedirectResult(getAuth(fbApp)).catch(()=>{}); }catch(e){}
+  }
+} catch(e){
+  // Jangan telan: simpan supaya bisa ditampilkan di status app.
+  window.__initError = 'Firebase init failed: '+((e&&(e.code||e.message))||String(e));
+  console.error(window.__initError, e);
+}
 </script>
 
 <script>
@@ -793,9 +816,13 @@ function setSync(st){
   el.style.cursor='pointer';
   el.title = __lastError ? ('Firebase: '+__lastError+' — tap for details') : (__lastRemoteOk?'Connected to Firebase':'Not yet confirmed with Firebase');
   el.onclick = ()=>{
+    const initErr = (typeof window!=='undefined' && window.__initError) ? ('\n\nInit error:\n'+window.__initError) : '';
+    const cfg = (window.__FB && window.__FB.configured) ? 'configured=YES' : 'configured=NO';
+    const online = (navigator.onLine===false)?'browser=OFFLINE':'browser=online';
+    const diag = '\n\n['+cfg+', '+online+']';
     const msg = __lastRemoteOk
-      ? ('Firebase: CONNECTED\nLast write reached the server.'+(__lastError?('\n\nMost recent error (recovered):\n'+__lastError):''))
-      : ('Firebase: NOT CONNECTED (this device)\nData is saved locally but has NOT reached the server.'+(__lastError?('\n\nError:\n'+__lastError):'\n\nNo error captured yet — try creating a task.'));
+      ? ('Firebase: CONNECTED\nLast write reached the server.'+(__lastError?('\n\nMost recent error (recovered):\n'+__lastError):'')+initErr+diag)
+      : ('Firebase: NOT CONNECTED (this device)\nData is saved locally but has NOT reached the server.'+(__lastError?('\n\nError:\n'+__lastError):'\n\nNo error captured yet — try creating a task.')+initErr+diag);
     alert(msg);
   };
   // Kalau benar-benar tidak ada jaringan → Offline (apa pun state-nya).
