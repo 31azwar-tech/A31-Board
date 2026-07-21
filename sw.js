@@ -3,7 +3,7 @@
    - App shell (HTML/manifest/ikon) di-precache → app terbuka instan & offline.
    - Firebase SDK & database di-handle jaringan (Firebase punya cache offline sendiri).
 */
-const CACHE = 'a31-board-v3';
+const CACHE = 'a31-board-v4';
 const SHELL = [
   './',
   './index.html',
@@ -38,7 +38,24 @@ self.addEventListener('fetch', (e) => {
     return; // default: network
   }
 
-  // App shell & aset lokal: cache-first, lalu update di belakang layar (stale-while-revalidate).
+  // HTML/navigasi: network-first supaya update aplikasi langsung diterapkan saat online,
+  // fallback ke cache saat offline.
+  const isHTML = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').includes('text/html');
+  if (isHTML && url.origin === self.location.origin) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // Aset lokal lain (ikon, manifest): cache-first + update di belakang layar.
   e.respondWith(
     caches.match(req).then((cached) => {
       const fetching = fetch(req).then((res) => {
