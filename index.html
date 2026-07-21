@@ -529,9 +529,7 @@ window.__FB = {
 // Surface redirect-login errors if any
 try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){
   console.error('A31: init Firebase gagal —', e && (e.message||e));
-  window.__FB_INIT_ERROR = String(e && (e.message||e));
 }
-// Tandai bahwa modul Firebase SUDAH selesai dimuat (dipakai app untuk deteksi mobile race).
 window.__FB_MODULE_LOADED = true;
 </script>
 
@@ -659,10 +657,18 @@ function writeLocalCache(payload){ try{ localStorage.setItem(cacheKey(), JSON.st
 
 function hydrate(d){
   if(!d) return;
-  // Server = sumber kebenaran. Ambil apa adanya dari snapshot.
+  // Server = sumber kebenaran UNTUK DATA (tasks & folders).
   S.folders = (d.folders && d.folders.length) ? d.folders : S.folders;
   S.tasks   = Array.isArray(d.tasks) ? d.tasks : [];
-  S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
+  // JANGAN menimpa state navigasi/tampilan (view, groupBy, smart, folder) dari
+  // server — itu bikin Matrix berubah jadi Kanban / kolom kosong. Hanya ambil
+  // preferensi yang aman dan bersifat data (buka-tutup folder, dsb).
+  const rui = d.ui || {};
+  if(rui.foldOpen)  S.ui.foldOpen  = rui.foldOpen;
+  if(rui.collapsed) S.ui.collapsed = rui.collapsed;
+  if(rui.sort)      S.ui.sort      = rui.sort;
+  if(typeof rui.seeded==='boolean') S.ui.seeded = rui.seeded;
+  S.ui.search='';
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
 }
@@ -689,16 +695,16 @@ function migrateFolders(){
 
 // Called once user is known. Loads cache instantly, then subscribes to realtime DB.
 let __remoteArrived=false;   // apakah snapshot pertama dari server sudah datang?
-let __boundToFirebase=false; // sudah subscribe ke Firebase?
+let __boundToFirebase=false;
 
-// Tunggu sampai modul Firebase (window.__FB) selesai dimuat.
-// PENTING untuk mobile: SDK dari CDN gstatic bisa selesai LEBIH LAMBAT daripada
-// script app ini, sehingga tanpa menunggu, HP salah masuk mode "Lokal".
+// Tunggu sampai modul Firebase (window.__FB) selesai dimuat dari CDN.
+// KRITIKAL untuk mobile: di HP, SDK dari gstatic bisa selesai LEBIH LAMBAT
+// daripada script app ini; tanpa menunggu, HP salah masuk mode "Lokal".
 function whenFirebaseReady(cb){
   let tries=0;
   (function poll(){
     if(window.__FB && typeof window.__FB.configured!=='undefined'){ cb(window.__FB.configured); return; }
-    if(tries++ > 100){ cb(false); return; }   // ~10 dtk; menyerah → mode lokal
+    if(tries++ > 100){ cb(false); return; }   // ~10 dtk lalu menyerah → lokal
     setTimeout(poll, 100);
   })();
 }
@@ -710,7 +716,6 @@ function bindFirebase(uid){
     applyingRemote=true;
     const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
     if(hasRemoteBoard){
-      // Data server ada → pakai itu (menang atas cache lokal).
       hydrate(remote);
       __remoteArrived=true;
       writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
@@ -718,15 +723,13 @@ function bindFirebase(uid){
       setSync('saved');
       render();
     } else {
-      // Server benar-benar KOSONG (belum pernah ada board).
-      // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
       if(!__remoteArrived){
         __remoteArrived=true;
         if(!Array.isArray(S.tasks) || S.tasks.length===0){
           if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
         }
-        applyingRemote=false;   // izinkan push berikutnya
-        pushRemote();           // tulis isi awal ke server
+        applyingRemote=false;
+        pushRemote();
         writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
         setSync('saved');
         render();
@@ -739,15 +742,14 @@ function bindFirebase(uid){
 
 async function startSync(uid){
   CURRENT_UID = uid;
-  // 1) instant paint from local cache (offline-first) — HANYA untuk tampilan awal.
-  //    Jangan seed di sini; tunggu server supaya tidak menimpa data perangkat lain.
+  // 1) tampilan awal dari cache lokal (offline-first). Jangan seed di sini.
   const cached = readLocalCache();
   if(cached){ hydrate(cached); }
   render();
   if(new URLSearchParams(location.search).get('add')==='1'){ setTimeout(()=>{ try{ openAddTask(new Event('click')); }catch(e){} }, 300); }
 
-  // 2) subscribe to Firebase — TUNGGU modulnya siap dulu (kritikal untuk mobile).
-  setSync('saving');  // tampilkan "Menyimpan…" selagi menunggu koneksi
+  // 2) subscribe ke Firebase — TUNGGU modulnya siap dulu (kritikal untuk mobile).
+  setSync('saving');
   whenFirebaseReady((configured)=>{
     if(configured){
       try{ bindFirebase(uid); }
@@ -759,6 +761,9 @@ async function startSync(uid){
 }
 
 let saveTimer=null;
+// Hanya kirim preferensi UI yang aman ke server (bukan view/groupBy/smart/folder),
+// supaya tidak mengacaukan tampilan perangkat lain.
+function safeUI(){ return { foldOpen:S.ui.foldOpen||{}, collapsed:S.ui.collapsed||{}, sort:S.ui.sort||{}, seeded:!!S.ui.seeded }; }
 function pushRemote(){
   // Pengaman: jangan pernah menulis board KOSONG ke server sebelum kita
   // menerima snapshot pertama. Ini mencegah satu perangkat menghapus data
@@ -768,8 +773,10 @@ function pushRemote(){
     setSync('saved');   // tampilkan aman; tunggu server dulu
     return;
   }
-  const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
-  writeLocalCache(payload);
+  // Cache lokal menyimpan UI penuh (biar tampilan lokal konsisten setelah reload),
+  // tapi payload ke server hanya membawa UI yang aman.
+  writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+  const payload={folders:S.folders,tasks:S.tasks,ui:safeUI(),updatedAt:Date.now()};
   if(window.__FB && window.__FB.configured && CURRENT_UID){
     window.__FB.push(CURRENT_UID, payload)
       .then(()=>setSync('saved'))
@@ -1554,9 +1561,8 @@ function renderRail(){
   r.innerHTML=`<img class="rail-logo" src="${APP_LOGO}" alt="A31 Board" title="A31 Board">` +
     `<div class="avatar" title="${u?esc(u.name||u.email||''):'Akun'}" onclick="railAccount()">${avatarInner}</div>` +
     items.map(([k,icn,lbl])=>{
-      const n=smartCount(k);
       return `<button class="rail-btn ${S.ui.smart===k&&['kanban','split'].includes(S.ui.view)?'active':''}"
-        onclick="goSmart('${k}')">${ic(icn,20)}${n?`<span class="badge">${n}</span>`:''}<span class="tip">${lbl}</span></button>`;
+        onclick="goSmart('${k}')">${ic(icn,20)}<span class="tip">${lbl}</span></button>`;
     }).join('') +
     `<button class="rail-btn ${S.ui.view==='calendar'?'active':''}" onclick="goView('calendar')">${ic('calendar',20)}<span class="tip">Calendar</span></button>
      <button class="rail-btn ${S.ui.view==='eisenhower'?'active':''}" onclick="goView('eisenhower')">${ic('matrix',20)}<span class="tip">Eisenhower</span></button>
@@ -1683,21 +1689,14 @@ function dueBadgeCount(){
   return S.tasks.filter(t=>!t.done && t.due && t.due<=td).length;
 }
 
-/* Set / hapus lencana pada ikon aplikasi (Desktop PWA & Android).
-   PENTING: clearAppBadge() dipanggil saat 0 supaya "logo notifikasi"
-   benar-benar hilang setelah tugas dibuka/diselesaikan. */
+/* Ikon merah pada aplikasi TIDAK diinginkan → selalu bersihkan lencana. */
 async function refreshAppBadge(){
   try{
-    const n=dueBadgeCount();
-    if('setAppBadge' in navigator){
-      if(n>0) await navigator.setAppBadge(n);
-      else    await navigator.clearAppBadge();
-    }
-    // Beri tahu service worker juga (untuk kasus PWA di background)
+    if('clearAppBadge' in navigator) await navigator.clearAppBadge();
     if(navigator.serviceWorker && navigator.serviceWorker.controller){
-      navigator.serviceWorker.controller.postMessage({type:'badge', count:n});
+      navigator.serviceWorker.controller.postMessage({type:'badge', count:0});
     }
-  }catch(e){ /* diamkan: sebagian browser belum dukung Badging API */ }
+  }catch(e){ /* diamkan */ }
 }
 
 /* --------- Notifikasi deadline (khusus perangkat yang mendukung) --------- */
