@@ -1,25 +1,21 @@
 {
   "name": "A31 Board",
-  "short_name": "A31 Board",
-  "description": "Manajemen tugas pribadi gaya TickTick — input cepat bahasa alami, papan Kanban, sinkron antar perangkat.",
-  "id": "/",
+  "short_name": "A31",
+  "description": "Papan tugas pribadi ala TickTick",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["standalone", "window-controls-overlay"],
-  "orientation": "any",
+  "orientation": "portrait",
   "background_color": "#F5F6F8",
-  "theme_color": "#3B82F6",
-  "lang": "id",
-  "dir": "ltr",
-  "categories": ["productivity", "utilities"],
+  "theme_color": "#34C759",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "favicon.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "apple-touch-icon.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "apple-touch-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    { "name": "Today", "short_name": "Today", "url": "./index.html?smart=today", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
-    { "name": "Tambah Tugas", "short_name": "Add", "url": "./index.html?add=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+    { "name": "Tambah Tugas", "url": "./index.html?add=1" },
+    { "name": "Hari Ini", "url": "./index.html?smart=today" }
   ]
 }

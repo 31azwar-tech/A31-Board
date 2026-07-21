@@ -730,12 +730,28 @@ function save(){
   saveTimer=setTimeout(pushRemote, 300);
 }
 
+let __lastRemoteOk=false;   // pernah berhasil baca/tulis ke Firebase?
 function setSync(st){
   const el=document.getElementById('sync'), tx=document.getElementById('sync-txt');
   if(!el||!tx) return;
-  el.className=st==='saving'?'saving':'saved';
-  tx.textContent=st==='saving'?'Menyimpan…':(st==='error'?'Offline':'Synced');
+  // Kalau benar-benar tidak ada jaringan → Offline (apa pun state-nya).
+  if(navigator.onLine===false){
+    el.className='saved'; tx.textContent='Offline'; return;
+  }
+  if(st==='saved') __lastRemoteOk=true;
+  if(st==='saving'){ el.className='saving'; tx.textContent='Menyimpan…'; return; }
+  if(st==='error'){
+    // 'error' di sini = tulis/baca DB gagal. Jika ini karena RULES (bukan jaringan),
+    // app tetap jalan dari cache; tampilkan "Lokal" bukan "Offline" biar tidak membingungkan.
+    el.className='saving';
+    tx.textContent = __lastRemoteOk ? 'Menyimpan…' : 'Lokal';
+    return;
+  }
+  el.className='saved'; tx.textContent='Synced';
 }
+// Perbarui label saat status jaringan berubah
+window.addEventListener('online',  ()=>{ setSync(__lastRemoteOk?'saved':'error'); pushRemote(); });
+window.addEventListener('offline', ()=>setSync('saved'));
 
 /* ---------- Smart natural-language parser (Bahasa Indonesia) ---------- */
 const DAYNAMES = {minggu:0,ahad:0,senin:1,selasa:2,rabu:3,kamis:4,jumat:5,"jum'at":5,sabtu:6};
@@ -1556,6 +1572,8 @@ function render(){
     case 'eisenhower': renderEisenhower(c); break;
     default: renderBoard(c);
   }
+  refreshAppBadge();      // sinkronkan angka merah di ikon aplikasi
+  scheduleDeadlineChecks(); // pastikan pengingat deadline aktif
 }
 window.addEventListener('resize',()=>{ clearTimeout(window.__rz); window.__rz=setTimeout(render,150); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closePopover(); } });
@@ -1595,6 +1613,114 @@ function bootAuth(){
 }
 
 bootAuth();
+
+/* ============================================================
+   Lencana ikon aplikasi (angka merah) + Notifikasi deadline
+   ============================================================ */
+
+/* Hitung tugas yang "butuh perhatian": overdue + jatuh tempo hari ini,
+   belum selesai. Ini yang jadi angka di ikon aplikasi. */
+function dueBadgeCount(){
+  const td=todayISO();
+  return S.tasks.filter(t=>!t.done && t.due && t.due<=td).length;
+}
+
+/* Set / hapus lencana pada ikon aplikasi (Desktop PWA & Android).
+   PENTING: clearAppBadge() dipanggil saat 0 supaya "logo notifikasi"
+   benar-benar hilang setelah tugas dibuka/diselesaikan. */
+async function refreshAppBadge(){
+  try{
+    const n=dueBadgeCount();
+    if('setAppBadge' in navigator){
+      if(n>0) await navigator.setAppBadge(n);
+      else    await navigator.clearAppBadge();
+    }
+    // Beri tahu service worker juga (untuk kasus PWA di background)
+    if(navigator.serviceWorker && navigator.serviceWorker.controller){
+      navigator.serviceWorker.controller.postMessage({type:'badge', count:n});
+    }
+  }catch(e){ /* diamkan: sebagian browser belum dukung Badging API */ }
+}
+
+/* --------- Notifikasi deadline (khusus perangkat yang mendukung) --------- */
+let __notifTimer=null;
+const NOTIFIED_KEY='a31-notified-v1';
+
+function getNotified(){
+  try{ return JSON.parse(localStorage.getItem(NOTIFIED_KEY)||'{}'); }catch(e){ return {}; }
+}
+function setNotified(map){ try{ localStorage.setItem(NOTIFIED_KEY, JSON.stringify(map)); }catch(e){} }
+
+/* Minta izin notifikasi sekali (dipicu oleh interaksi pertama pengguna) */
+async function ensureNotifPermission(){
+  if(!('Notification' in window)) return false;
+  if(Notification.permission==='granted') return true;
+  if(Notification.permission==='denied')  return false;
+  try{ const p=await Notification.requestPermission(); return p==='granted'; }
+  catch(e){ return false; }
+}
+// Picu permintaan izin pada sentuhan/klik pertama (syarat browser mobile)
+['click','touchend'].forEach(ev=>{
+  window.addEventListener(ev, ()=>{ ensureNotifPermission(); }, {once:true, passive:true});
+});
+
+/* Tampilkan notifikasi (lewat SW kalau ada, agar muncul di Android
+   meski tab tidak fokus). */
+async function fireNotification(title, body, tag){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const opts={ body, tag, renotify:false, icon:APP_LOGO, badge:APP_LOGO,
+               data:{url: location.pathname} };
+  try{
+    if(navigator.serviceWorker){
+      const reg=await navigator.serviceWorker.getRegistration();
+      if(reg){ reg.showNotification(title, opts); return; }
+    }
+  }catch(e){}
+  try{ new Notification(title, opts); }catch(e){}
+}
+
+/* Cek tugas: kirim notifikasi untuk yang jatuh tempo hari ini / terlewat,
+   maksimal sekali per tugas per hari. */
+function checkDeadlines(){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const td=todayISO();
+  const notified=getNotified();
+  // buang catatan hari lampau supaya map tidak membengkak
+  for(const k of Object.keys(notified)){ if(notified[k]!==td) delete notified[k]; }
+
+  const now=new Date();
+  const hhmm=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+
+  for(const t of S.tasks){
+    if(t.done || !t.due) continue;
+    const key=t.id;
+    if(notified[key]===td) continue;            // sudah dinotif hari ini
+
+    let fire=false, title='', body='';
+    if(t.due<td){
+      fire=true; title='⏰ Tugas terlewat';
+      body=`"${t.title}" sudah lewat tenggat (${fmtDate(t.due)}).`;
+    } else if(t.due===td){
+      // kalau ada jam: notif saat jam tersebut tiba; kalau tidak, notif sejak awal hari
+      if(!t.time || t.time<=hhmm){
+        fire=true; title='📌 Deadline hari ini';
+        body=`"${t.title}" jatuh tempo hari ini${t.time?(' jam '+t.time):''}.`;
+      }
+    }
+    if(fire){ fireNotification(title, body, 'a31-'+key); notified[key]=td; }
+  }
+  setNotified(notified);
+  refreshAppBadge();
+}
+
+/* Jalankan pengecekan sekarang + berkala tiap menit. */
+function scheduleDeadlineChecks(){
+  if(__notifTimer) return;                 // sudah terjadwal
+  checkDeadlines();
+  __notifTimer=setInterval(checkDeadlines, 60*1000);
+}
+// Cek ulang saat app kembali ke depan (buka dari background di Android)
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkDeadlines(); });
 
 /* ---------- PWA: register service worker + install prompt ---------- */
 if('serviceWorker' in navigator){
