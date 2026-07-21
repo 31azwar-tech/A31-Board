@@ -654,8 +654,9 @@ function writeLocalCache(payload){ try{ localStorage.setItem(cacheKey(), JSON.st
 
 function hydrate(d){
   if(!d) return;
+  // Server = sumber kebenaran. Ambil apa adanya dari snapshot.
   S.folders = (d.folders && d.folders.length) ? d.folders : S.folders;
-  S.tasks   = d.tasks || [];
+  S.tasks   = Array.isArray(d.tasks) ? d.tasks : [];
   S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
@@ -682,29 +683,46 @@ function migrateFolders(){
 }
 
 // Called once user is known. Loads cache instantly, then subscribes to realtime DB.
+let __remoteArrived=false;   // apakah snapshot pertama dari server sudah datang?
 async function startSync(uid){
   CURRENT_UID = uid;
-  // 1) instant paint from local cache (offline-first)
+  // 1) instant paint from local cache (offline-first) — HANYA untuk tampilan awal.
+  //    Jangan seed di sini; tunggu server supaya tidak menimpa data perangkat lain.
   const cached = readLocalCache();
   if(cached){ hydrate(cached); }
-  if(!S.ui.seeded && S.tasks.length===0){ S.tasks=seedTasks(); S.ui.seeded=true; }
   render();
   if(new URLSearchParams(location.search).get('add')==='1'){ setTimeout(()=>{ try{ openAddTask(new Event('click')); }catch(e){} }, 300); }
 
-  // 2) subscribe to Firebase; remote is source of truth once it arrives
+  // 2) subscribe to Firebase; remote SELALU sumber kebenaran begitu tiba.
   if(window.__FB && window.__FB.configured){
     window.__FB.bind(uid, (remote)=>{
       applyingRemote=true;
-      if(remote){ hydrate(remote); }
-      else {
-        // brand-new user: seed then push up
-        if(S.tasks.length===0){ S.tasks=seedTasks(); S.ui.seeded=true; }
-        pushRemote();
+      const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
+      if(hasRemoteBoard){
+        // Data server ada → pakai itu (menang atas cache lokal).
+        hydrate(remote);
+        __remoteArrived=true;
+        writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+        applyingRemote=false;
+        setSync('saved');
+        render();
+      } else {
+        // Server benar-benar KOSONG (belum pernah ada board).
+        // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
+        if(!__remoteArrived){
+          __remoteArrived=true;
+          if(!Array.isArray(S.tasks) || S.tasks.length===0){
+            if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
+          }
+          applyingRemote=false;   // izinkan push berikutnya
+          pushRemote();           // tulis isi awal ke server
+          writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+          setSync('saved');
+          render();
+        } else {
+          applyingRemote=false;
+        }
       }
-      writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
-      applyingRemote=false;
-      setSync('saved');
-      render();
     });
   } else {
     setSync('error'); // no config -> local-only mode
@@ -713,6 +731,14 @@ async function startSync(uid){
 
 let saveTimer=null;
 function pushRemote(){
+  // Pengaman: jangan pernah menulis board KOSONG ke server sebelum kita
+  // menerima snapshot pertama. Ini mencegah satu perangkat menghapus data
+  // perangkat lain saat baru start (last-write-wins yang merusak).
+  const emptyBoard = (!Array.isArray(S.tasks) || S.tasks.length===0);
+  if(emptyBoard && !__remoteArrived){
+    setSync('saved');   // tampilkan aman; tunggu server dulu
+    return;
+  }
   const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
   writeLocalCache(payload);
   if(window.__FB && window.__FB.configured && CURRENT_UID){
