@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -71,6 +71,16 @@ input,select,textarea{font:inherit;color:inherit}
 #topbar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:var(--bg);
   border-bottom:1px solid var(--line);flex-wrap:wrap;min-height:54px}
 #hamburger{display:none;font-size:18px;padding:6px}
+#sidebar-toggle{display:flex;align-items:center;justify-content:center;padding:6px;border-radius:9px;
+  color:var(--ink2);transition:background var(--tr),color var(--tr)}
+#sidebar-toggle:hover{background:#EEF0F4;color:var(--ink)}
+#app.sidebar-hidden #sidebar{display:none}
+#completed-toggle{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:10px;
+  font-size:12.5px;font-weight:600;color:var(--ink2);background:#EEF0F4;white-space:nowrap;
+  transition:all var(--tr)}
+#completed-toggle svg{vertical-align:-3px}
+#completed-toggle:hover{filter:brightness(.97)}
+#completed-toggle.off{color:var(--ink3);background:#F0F1F4}
 #view-title{font-size:16px;font-weight:700;white-space:nowrap}
 #sync{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink3);
   padding:3px 9px;border-radius:20px;background:#EEF0F4;transition:all var(--tr);white-space:nowrap}
@@ -304,6 +314,10 @@ input,select,textarea{font:inherit;color:inherit}
   #sb-close{display:block;margin-left:auto;font-size:16px;padding:4px 10px;color:var(--ink3)}
   #drawer-bg.show{display:block;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:99}
   #hamburger{display:block}
+  #sidebar-toggle{display:none}
+  #completed-toggle{padding:6px 8px}
+  #completed-toggle span,#completed-toggle{font-size:0}
+  #completed-toggle svg{font-size:16px}
   #topbar{gap:8px;padding:8px 10px}
   #view-title{font-size:14.5px}
   #searchwrap{order:5;flex:1 1 100%;max-width:none}
@@ -430,14 +444,14 @@ optgroup{font-size:11px;color:var(--ink3)}
   <div class="ag-card">
     <img class="ag-logo" src="data:image/png;base64,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" alt="A31 Board">
     <h1>A31 Board</h1>
-    <p class="ag-sub">Manajemen tugas pribadi. Menyinkronkan otomatis antar perangkat.</p>
-    <p id="ag-status" class="ag-status">Memuat…</p>
-    <p class="ag-foot">Data tersimpan di Firebase. Bekerja offline &amp; sinkron otomatis saat online.</p>
+    <p class="ag-sub">Personal task management. Syncs automatically across devices.</p>
+    <p id="ag-status" class="ag-status">Loading…</p>
+    <p class="ag-foot">Data stored in Firebase. Works offline &amp; syncs automatically when online.</p>
   </div>
 </div>
 
 <!-- ===== Install app button (muncul bila installable) ===== -->
-<button id="install-btn" title="Install aplikasi">⬇ Install App</button>
+<button id="install-btn" title="Install app">⬇ Install App</button>
 <div id="app" style="display:none">
   <nav id="rail"></nav>
   <aside id="sidebar"></aside>
@@ -445,10 +459,12 @@ optgroup{font-size:11px;color:var(--ink3)}
   <div id="main">
     <header id="topbar">
       <button id="hamburger" onclick="openDrawer()" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button id="sidebar-toggle" onclick="toggleSidebar()" title="Show/Hide sidebar" aria-label="Toggle sidebar"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
       <span id="view-title">Kanban</span>
       <span id="sync" class="saved"><span class="sd"></span><span id="sync-txt">Synced</span></span>
-      <div id="searchwrap"><svg class="search-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21 21-4.3-4.3M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/></svg><input id="search" type="text" placeholder="Cari tugas…" oninput="S.ui.search=this.value;render()"></div>
+      <div id="searchwrap"><svg class="search-ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21 21-4.3-4.3M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z"/></svg><input id="search" type="text" placeholder="Search tasks…" oninput="S.ui.search=this.value;render()"></div>
       <div class="seg" id="groupseg"></div>
+      <button id="completed-toggle" onclick="toggleCompleted()" title="Show/Hide completed tasks"></button>
       <button id="add-task-btn" onclick="openAddTask(event)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add Task</button>
     </header>
     <div id="content"></div>
@@ -614,10 +630,10 @@ const todayISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d
 const addDays = (iso,n) => { const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n);
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-const DOW = ['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
-const PRI = { high:{lbl:'Tinggi',flag:'⚑',c:'high'}, medium:{lbl:'Sedang',flag:'⚑',c:'medium'},
-              low:{lbl:'Rendah',flag:'⚑',c:'low'}, none:{lbl:'—',flag:'',c:'none'} };
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const PRI = { high:{lbl:'High',flag:'⚑',c:'high'}, medium:{lbl:'Medium',flag:'⚑',c:'medium'},
+              low:{lbl:'Low',flag:'⚑',c:'low'}, none:{lbl:'—',flag:'',c:'none'} };
 const STATUSES = [ {id:'todo',name:'To-Do',icon:'todo',color:'#3B82F6'},
   {id:'doing',name:'In Progress',icon:'doing',color:'#FF9500'}, {id:'done',name:'Done',icon:'done',color:'#34C759'} ];
 
@@ -766,12 +782,12 @@ function setSync(st){
     el.className='saved'; tx.textContent='Offline'; return;
   }
   if(st==='saved') __lastRemoteOk=true;
-  if(st==='saving'){ el.className='saving'; tx.textContent='Menyimpan…'; return; }
+  if(st==='saving'){ el.className='saving'; tx.textContent='Saving…'; return; }
   if(st==='error'){
     // 'error' di sini = tulis/baca DB gagal. Jika ini karena RULES (bukan jaringan),
     // app tetap jalan dari cache; tampilkan "Lokal" bukan "Offline" biar tidak membingungkan.
     el.className='saving';
-    tx.textContent = __lastRemoteOk ? 'Menyimpan…' : 'Lokal';
+    tx.textContent = __lastRemoteOk ? 'Saving…' : 'Local';
     return;
   }
   el.className='saved'; tx.textContent='Synced';
@@ -781,7 +797,8 @@ window.addEventListener('online',  ()=>{ setSync(__lastRemoteOk?'saved':'error')
 window.addEventListener('offline', ()=>setSync('saved'));
 
 /* ---------- Smart natural-language parser (Bahasa Indonesia) ---------- */
-const DAYNAMES = {minggu:0,ahad:0,senin:1,selasa:2,rabu:3,kamis:4,jumat:5,"jum'at":5,sabtu:6};
+const DAYNAMES = {minggu:0,ahad:0,senin:1,selasa:2,rabu:3,kamis:4,jumat:5,"jum'at":5,sabtu:6,
+  sunday:0,monday:1,tuesday:2,wednesday:3,thursday:4,friday:5,saturday:6};
 function parseInput(text){
   let title=' '+text+' ';
   const out={title:'',priority:null,due:null,time:null,tags:[]};
@@ -803,7 +820,8 @@ function parseInput(text){
     out.due=dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
     return ' ';});
   // relative words
-  const rel=[[/\shari ini\b/i,0],[/\sbesok\b/i,1],[/\slusa\b/i,2],[/\sminggu depan\b/i,7]];
+  const rel=[[/\stoday\b/i,0],[/\stomorrow\b/i,1],[/\snext week\b/i,7],
+             [/\shari ini\b/i,0],[/\sbesok\b/i,1],[/\slusa\b/i,2],[/\sminggu depan\b/i,7]];
   for(const [re,n] of rel){ if(re.test(title)){ title=title.replace(re,' '); out.due=addDays(todayISO(),n); break; } }
   // weekday (+ depan)
   if(!out.due){
@@ -826,8 +844,8 @@ function chipHTML(p){
 }
 function fmtDate(iso){
   const t=todayISO();
-  if(iso===t) return 'Hari ini';
-  if(iso===addDays(t,1)) return 'Besok';
+  if(iso===t) return 'Today';
+  if(iso===addDays(t,1)) return 'Tomorrow';
   const d=new Date(iso+'T00:00:00');
   return d.getDate()+' '+MONTHS[d.getMonth()];
 }
@@ -873,14 +891,14 @@ function folderCount(fid){
 
 /* ---------- Folder CRUD ---------- */
 function addGroup(){
-  const name=prompt('Nama folder induk baru:','Folder Baru'); if(name===null) return;
+  const name=prompt('New parent folder name:','New Folder'); if(name===null) return;
   const g={id:'g'+uid(),name:name.trim()||'Folder Baru',
     icon:GROUP_ICON_SET[groups().length%GROUP_ICON_SET.length],
     color:PALETTE[S.folders.length%PALETTE.length],parentId:null};
   mutate(()=>{ S.folders.push(g); S.ui.foldOpen[g.id]=true; });
 }
 function addSub(gid){
-  const name=prompt('Nama subfolder baru:','Subfolder'); if(name===null) return;
+  const name=prompt('New subfolder name:','Subfolder'); if(name===null) return;
   const sub={id:'f'+uid(),name:name.trim()||'Subfolder',
     icon:FOLDER_ICON_SET[leafFolders().length%FOLDER_ICON_SET.length],
     color:PALETTE[S.folders.length%PALETTE.length],parentId:gid};
@@ -891,14 +909,14 @@ function delFolder(fid){
   if(f.parentId===null){
     const kids=childrenOf(fid);
     const nTasks=kids.reduce((n,k)=>n+S.tasks.filter(t=>t.folderId===k.id).length,0);
-    if(!confirm(`Hapus folder induk "${f.name}"?\n${kids.length} subfolder & ${nTasks} tugas di dalamnya ikut terhapus.`)) return;
+    if(!confirm(`Delete parent folder "${f.name}"?\n${kids.length} subfolder(s) & ${nTasks} task(s) inside will also be deleted.`)) return;
     const kidIds=kids.map(k=>k.id);
     mutate(()=>{ S.folders=S.folders.filter(x=>x.id!==fid && !kidIds.includes(x.id));
       S.tasks=S.tasks.filter(t=>!kidIds.includes(t.folderId)); ensureFallback();
       if(S.ui.folder===fid) S.ui.folder=null; });
   } else {
     const n=S.tasks.filter(t=>t.folderId===fid).length;
-    if(!confirm(`Hapus subfolder "${f.name}"?\n${n} tugas di dalamnya ikut terhapus.`)) return;
+    if(!confirm(`Delete subfolder "${f.name}"?\n${n} task(s) inside will also be deleted.`)) return;
     mutate(()=>{ S.folders=S.folders.filter(x=>x.id!==fid);
       S.tasks=S.tasks.filter(t=>t.folderId!==fid); ensureFallback();
       if(S.ui.folder===fid) S.ui.folder=null; });
@@ -927,7 +945,7 @@ function taskMatches(t){
     default:         return true;
   }
 }
-const visibleTasks = () => S.tasks.filter(taskMatches);
+const visibleTasks = () => S.tasks.filter(t=> taskMatches(t) && (S.ui.showCompleted!==false || !t.done));
 function smartCount(k){ const bak=S.ui.smart,bak2=S.ui.folder,bak3=S.ui.search;
   S.ui.smart=k;S.ui.folder=null;S.ui.search='';
   const n=S.tasks.filter(t=>taskMatches(t)&&!t.done).length;
@@ -952,17 +970,17 @@ function columnsFor(mode){
   if(mode==='status') return STATUSES.map(s=>({key:s.id,name:s.name,icon:s.icon,color:s.color,
     test:t=>t.status===s.id, assign:t=>{t.status=s.id;t.done=s.id==='done';}}));
   if(mode==='priority') return [
-    {key:'high',name:'Tinggi',icon:'flag',color:'#E5484D',test:t=>t.priority==='high',assign:t=>t.priority='high'},
-    {key:'medium',name:'Sedang',icon:'flag',color:'#FF9500',test:t=>t.priority==='medium',assign:t=>t.priority='medium'},
-    {key:'low',name:'Rendah',icon:'flag',color:'#3B82F6',test:t=>t.priority==='low',assign:t=>t.priority='low'},
-    {key:'none',name:'Tanpa Prioritas',icon:'flag',color:'#9CA3AF',test:t=>!t.priority||t.priority==='none',assign:t=>t.priority='none'}];
+    {key:'high',name:'High',icon:'flag',color:'#E5484D',test:t=>t.priority==='high',assign:t=>t.priority='high'},
+    {key:'medium',name:'Medium',icon:'flag',color:'#FF9500',test:t=>t.priority==='medium',assign:t=>t.priority='medium'},
+    {key:'low',name:'Low',icon:'flag',color:'#3B82F6',test:t=>t.priority==='low',assign:t=>t.priority='low'},
+    {key:'none',name:'No Priority',icon:'flag',color:'#9CA3AF',test:t=>!t.priority||t.priority==='none',assign:t=>t.priority='none'}];
   // date
   return [
-    {key:'d-today',name:'Hari Ini',icon:'calendar',color:'#3B82F6',test:t=>t.due===td||( !!t.due&&t.due<td&&!t.done),assign:t=>t.due=td},
-    {key:'d-tmr',name:'Besok',icon:'sunrise',color:'#34C759',test:t=>t.due===addDays(td,1),assign:t=>t.due=addDays(td,1)},
-    {key:'d-week',name:'Minggu Ini',icon:'week',color:'#FF9500',test:t=>!!t.due&&t.due>addDays(td,1)&&t.due<=addDays(td,7),assign:t=>t.due=addDays(td,3)},
-    {key:'d-later',name:'Akan Datang',icon:'clock',color:'#AF52DE',test:t=>!!t.due&&t.due>addDays(td,7),assign:t=>t.due=addDays(td,10)},
-    {key:'d-none',name:'Tanpa Tanggal',icon:'inbox',color:'#9CA3AF',test:t=>!t.due,assign:t=>t.due=null}];
+    {key:'d-today',name:'Today',icon:'calendar',color:'#3B82F6',test:t=>t.due===td||( !!t.due&&t.due<td&&!t.done),assign:t=>t.due=td},
+    {key:'d-tmr',name:'Tomorrow',icon:'sunrise',color:'#34C759',test:t=>t.due===addDays(td,1),assign:t=>t.due=addDays(td,1)},
+    {key:'d-week',name:'This Week',icon:'week',color:'#FF9500',test:t=>!!t.due&&t.due>addDays(td,1)&&t.due<=addDays(td,7),assign:t=>t.due=addDays(td,3)},
+    {key:'d-later',name:'Upcoming',icon:'clock',color:'#AF52DE',test:t=>!!t.due&&t.due>addDays(td,7),assign:t=>t.due=addDays(td,10)},
+    {key:'d-none',name:'No Date',icon:'inbox',color:'#9CA3AF',test:t=>!t.due,assign:t=>t.due=null}];
 }
 /* Sub-sections inside a column */
 function subsections(tasks){
@@ -979,8 +997,8 @@ function subsections(tasks){
   }
   return secs.map(s=>({...s,tasks:buckets[s.key]})).filter(s=>s.tasks.length>0);
 }
-const SORTS = [ ['pri-desc','Prioritas ↑'], ['pri-asc','Prioritas ↓'], ['due-asc','Tenggat terdekat'],
-  ['due-desc','Tenggat terjauh'], ['az','Abjad A–Z'], ['za','Abjad Z–A'],
+const SORTS = [ ['pri-desc','Priority ↑'], ['pri-asc','Priority ↓'], ['due-asc','Due soonest'],
+  ['due-desc','Due latest'], ['az','A–Z'], ['za','Z–A'],
   ['new','Terbaru'], ['old','Terlama'] ];
 const PRIV={high:3,medium:2,low:1,none:0};
 function sortTasks(list,mode){
@@ -1038,7 +1056,7 @@ function renderBoard(el){
         </div>
         <div class="subsec-body ${closed?'closed':''}">${sec.tasks.map(cardHTML).join('')}</div>
       </div>`;
-    }).join('') : `<div class="empty">Belum ada tugas di sini</div>`;
+    }).join('') : `<div class="empty">No tasks here yet</div>`;
     return `<div class="kcol" style="--acc:${c.color}"
       ondragover="event.preventDefault();this.classList.add('dragover')"
       ondragleave="this.classList.remove('dragover')"
@@ -1067,13 +1085,13 @@ function openQuickAdd(colKey){
   const wrap=document.getElementById('qa-'+colKey);
   if(!wrap) return;
   wrap.innerHTML=`<div class="qa-box">
-    <input id="qa-in-${colKey}" type="text" placeholder='cth: "Bayar sewa !high besok #keuangan"'
+    <input id="qa-in-${colKey}" type="text" placeholder='e.g. "Pay rent !high tomorrow #finance"'
       onkeydown="qaKey(event,'${colKey}')" oninput="qaPreview('${colKey}')">
     <div class="qa-chips" id="qa-ch-${colKey}"></div>
     <div class="qa-actions">
-      <span class="qa-hint">!high · besok · #tag</span>
+      <span class="qa-hint">!high · tomorrow · #tag</span>
       <span style="flex:1"></span>
-      <button class="btn-ghost" onclick="render()">Batal</button>
+      <button class="btn-ghost" onclick="render()">Cancel</button>
       <button class="btn-primary" onclick="qaCommit('${colKey}')">Add</button>
     </div>
   </div>`;
@@ -1132,7 +1150,7 @@ function openAddTask(e){
   popEl.onclick=ev=>ev.stopPropagation();
   const opts=folderOptions(defaultLeaf());
   popEl.innerHTML=`
-    <input type="text" id="pop-in" placeholder='Tulis tugas… cth: "Servis sepeda !med sabtu #hobi"'
+    <input type="text" id="pop-in" placeholder='Write a task… e.g. "Service bike !med saturday #hobby"'
       oninput="document.getElementById('pop-ch').innerHTML=chipHTML(parseInput(this.value))"
       onkeydown="if(event.key==='Enter'){event.preventDefault();popAdd();}if(event.key==='Escape')closePopover()">
     <div class="qa-chips" id="pop-ch" style="margin-top:8px"></div>
@@ -1182,8 +1200,8 @@ function openModal(id){
   ov.id='overlay';
   ov.onclick=e=>{ if(e.target===ov) closeModal(); };
   ov.innerHTML=`<div class="modal">
-    <h3>Detail Tugas <button class="x" onclick="closeModal()">${ic('close',16)}</button></h3>
-    <div class="m-field"><label>Judul</label>
+    <h3>Task Details <button class="x" onclick="closeModal()">${ic('close',16)}</button></h3>
+    <div class="m-field"><label>Title</label>
       <input type="text" id="m-title" value="${esc(t.title)}" oninput="mSet('title',this.value)"></div>
     <div class="m-grid">
       <div class="m-field"><label>Folder</label>
@@ -1195,28 +1213,28 @@ function openModal(id){
           ${STATUSES.map(s=>`<option value="${s.id}" ${s.id===t.status?'selected':''}>${s.name}</option>`).join('')}
         </select></div>
     </div>
-    <div class="m-field"><label>Prioritas</label>
+    <div class="m-field"><label>Priority</label>
       <div class="pri-seg" id="m-pri">
         ${['high','medium','low','none'].map(p=>`<button class="${p} ${t.priority===p?'on':''}"
           onclick="mSet('priority','${p}');mPriUI('${p}')">${p==='none'?'—':PRI[p].lbl}</button>`).join('')}
       </div></div>
     <div class="m-grid">
-      <div class="m-field"><label>Tenggat</label>
+      <div class="m-field"><label>Due date</label>
         <input type="date" value="${t.due||''}" onchange="mSet('due',this.value||null)"></div>
-      <div class="m-field"><label>Pengingat / Jam</label>
+      <div class="m-field"><label>Reminder / Time</label>
         <input type="time" value="${t.time||''}" onchange="mSet('time',this.value||null)"></div>
     </div>
-    <div class="m-field"><label>Tag (pisahkan koma)</label>
+    <div class="m-field"><label>Tags (comma-separated)</label>
       <input type="text" value="${esc(t.tags.join(', '))}"
         oninput="mSet('tags',this.value.split(',').map(s=>s.trim().replace(/^#/,'')).filter(Boolean))"></div>
     <div class="m-field"><label>Sub-task</label>
       <div id="m-subs">${subRows(t)}</div>
-      <button class="sub-add" onclick="mAddSub()">${ic('plus',14)} Tambah sub-task</button></div>
-    <div class="m-field"><label>Catatan</label>
+      <button class="sub-add" onclick="mAddSub()">${ic('plus',14)} Add sub-task</button></div>
+    <div class="m-field"><label>Notes</label>
       <textarea oninput="mSet('notes',this.value)">${esc(t.notes||'')}</textarea></div>
     <div class="foot">
-      <button class="btn-danger" onclick="mDelete()">Hapus tugas</button>
-      <span style="font-size:11px;color:var(--ink3)">Semua perubahan tersimpan otomatis</span>
+      <button class="btn-danger" onclick="mDelete()">Delete task</button>
+      <span style="font-size:11px;color:var(--ink3)">All changes saved automatically</span>
       <button class="btn-ghost" onclick="togglePin('${t.id}');closeModal();openModal('${t.id}')">${ic('pin',14)} ${t.pinned?'Unpin':'Pin'}</button>
     </div>
   </div>`;
@@ -1255,25 +1273,25 @@ function editFolder(fid){
   const ov=document.createElement('div'); ov.id='overlay';
   ov.onclick=e=>{ if(e.target===ov) closeFolderModal(); };
   ov.innerHTML=`<div class="modal" style="width:440px">
-    <h3>${isGrp?'Edit Folder Induk':'Edit Subfolder'} <button class="x" onclick="closeFolderModal()">${ic('close',16)}</button></h3>
-    <div class="m-field"><label>Nama</label>
+    <h3>${isGrp?'Edit Parent Folder':'Edit Subfolder'} <button class="x" onclick="closeFolderModal()">${ic('close',16)}</button></h3>
+    <div class="m-field"><label>Name</label>
       <input type="text" id="f-name" value="${esc(f.name)}" oninput="fSet('name',this.value)"></div>
-    <div class="m-field"><label>Ikon</label>
+    <div class="m-field"><label>Icon</label>
       <div class="icon-grid" id="f-icons">
         ${iconSet.map(nm=>`<button class="icon-opt ${nm===f.icon?'on':''}" data-nm="${nm}" style="color:${f.color}" onclick="fSet('icon','${nm}');fIconUI('${nm}')">${ic(nm,20)}</button>`).join('')}
       </div></div>
-    <div class="m-field"><label>Warna</label>
+    <div class="m-field"><label>Color</label>
       <div class="color-grid" id="f-colors">
         ${PALETTE.map(c=>`<button class="color-opt ${c===f.color?'on':''}" style="background:${c}"
           onclick="fSet('color','${c}');fColorUI('${c}')"></button>`).join('')}
       </div></div>
-    ${!isGrp?`<div class="m-field"><label>Pindah ke folder induk</label>
+    ${!isGrp?`<div class="m-field"><label>Move to parent folder</label>
       <select onchange="fSet('parentId',this.value)">
         ${groups().map(g=>`<option value="${g.id}" ${g.id===f.parentId?'selected':''}>${esc(g.name)}</option>`).join('')}
       </select></div>`:''}
     <div class="foot">
-      <button class="btn-danger" onclick="fDelete()">Hapus ${isGrp?'folder induk':'subfolder'}</button>
-      <span style="font-size:11px;color:var(--ink3)">Tersimpan otomatis</span>
+      <button class="btn-danger" onclick="fDelete()">Delete ${isGrp?'parent folder':'subfolder'}</button>
+      <span style="font-size:11px;color:var(--ink3)">Auto-saved</span>
       ${isGrp?`<button class="btn-ghost" onclick="addSub('${f.id}');closeFolderModal()">${ic('plus',14)} Subfolder</button>`:''}
     </div>
   </div>`;
@@ -1308,19 +1326,19 @@ function renderDash(el){
     <div class="widget"><div class="wt">Task Completed</div>
       <div class="donut" style="background:conic-gradient(var(--green) ${pct*3.6}deg,#EAECF0 0)">
         <div class="hole">${pct}%<span>${done}/${total}</span></div></div>
-      <div class="sub" style="text-align:center">tugas selesai</div></div>
+      <div class="sub" style="text-align:center">tasks completed</div></div>
     <div class="widget"><div class="wt">Overdue</div><div class="big" style="color:var(--red)">${over}</div>
-      <div class="sub">melewati tenggat</div></div>
+      <div class="sub">overdue</div></div>
     <div class="widget"><div class="wt">Due Today</div><div class="big" style="color:var(--blue)">${dueToday}</div>
-      <div class="sub">jatuh tempo hari ini</div></div>
-    <div class="widget" style="grid-column:span 2;min-width:0"><div class="wt">Beban 7 Hari ke Depan</div>
+      <div class="sub">due today</div></div>
+    <div class="widget" style="grid-column:span 2;min-width:0"><div class="wt">Next 7 Days Load</div>
       <div class="bars">${bars}</div></div>
-    <div class="widget dash-list" style="min-width:0"><div class="wt">Berikutnya</div>
+    <div class="widget dash-list" style="min-width:0"><div class="wt">Up Next</div>
       ${next.length?next.map(t=>`<div class="drow">
         <span style="width:8px;height:8px;border-radius:50%;background:${folderOf(t.folderId).color};flex:0 0 8px"></span>
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</span>
         <span class="chip cdate ${dateClass(t.due)}">${fmtDate(t.due)}</span></div>`).join('')
-      :'<div class="empty">Tidak ada tugas bertenggat</div>'}</div>
+      :'<div class="empty">No tasks with due dates</div>'}</div>
   </div></div>`;
 }
 
@@ -1349,9 +1367,9 @@ function renderCalendar(el,compact){
   }
   el.innerHTML=`<div class="calwrap">
     <div class="cal-head"><button class="cal-nav" onclick="calNav(-1)">${ic('chevLeft',16)}</button>
-      <b>${['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][m]} ${y}</b>
+      <b>${['January','February','March','April','May','June','July','August','September','October','November','December'][m]} ${y}</b>
       <button class="cal-nav" onclick="calNav(1)">${ic('chevRight',16)}</button>
-      <button class="btn-ghost" onclick="S.ui.calYM=null;save();render()">Hari ini</button></div>
+      <button class="btn-ghost" onclick="S.ui.calYM=null;save();render()">Today</button></div>
     <div class="cal-grid" style="grid-template-rows:auto repeat(6,minmax(${compact?'64':'84'}px,1fr))">${cells}</div>
   </div>`;
   // Swipe left/right to change month (mobile). Left = next, Right = prev.
@@ -1371,7 +1389,7 @@ function renderCalendar(el,compact){
 function calDay(iso){
   const list=visibleTasks().filter(t=>t.due===iso);
   if(!list.length){ // quick create on empty day
-    const title=prompt('Tugas baru untuk '+fmtDate(iso)+':'); if(!title) return;
+    const title=prompt('New task for '+fmtDate(iso)+':'); if(!title) return;
     const p=parseInput(title);
     mutate(()=>S.tasks.push({id:uid(),title:p.title||title,notes:'',status:'todo',
       priority:p.priority||'none',due:iso,time:p.time,tags:p.tags,folderId:defaultLeaf(),subtasks:[],
@@ -1379,7 +1397,7 @@ function calDay(iso){
     return;
   }
   if(list.length===1){ openModal(list[0].id); return; }
-  const pick=prompt('Tugas '+fmtDate(iso)+':\n'+list.map((t,i)=>(i+1)+'. '+t.title).join('\n')+'\n\nNomor untuk buka:');
+  const pick=prompt('Tasks '+fmtDate(iso)+':\n'+list.map((t,i)=>(i+1)+'. '+t.title).join('\n')+'\n\nNumber to open:');
   const idx=parseInt(pick,10)-1;
   if(list[idx]) openModal(list[idx].id);
 }
@@ -1417,7 +1435,7 @@ function renderTimeline(el){
       }).join('')}
     </div>`;
   }
-  html+=`<div class="empty" style="margin-top:10px">Seret bar ke kolom hari lain untuk mengubah tenggat</div></div>`;
+  html+=`<div class="empty" style="margin-top:10px">Drag a bar to another day column to change its due date</div></div>`;
   el.innerHTML=html;
 }
 function tlDrop(e,fid){
@@ -1438,8 +1456,8 @@ function quadrantOf(t){
   const important=t.priority==='high'||t.priority==='medium';
   return urgent?(important?'q1':'q3'):(important?'q2':'q4');
 }
-const QUADS=[ ['q1','🔥 Urgent & Penting','Kerjakan sekarang'], ['q2','🎯 Penting, Tak Urgent','Jadwalkan'],
-  ['q3','⚡ Urgent, Tak Penting','Delegasikan / cepat'], ['q4','🌫️ Tak Keduanya','Kurangi'] ];
+const QUADS=[ ['q1','🔥 Urgent & Important','Do it now'], ['q2','🎯 Important, Not Urgent','Schedule'],
+  ['q3','⚡ Urgent, Not Important','Delegate / quick'], ['q4','🌫️ Neither','Eliminate'] ];
 function renderEisenhower(el){
   const ts=visibleTasks().filter(t=>!t.done);
   el.innerHTML=`<div class="eiwrap">${QUADS.map(([q,name,hint])=>{
@@ -1448,7 +1466,7 @@ function renderEisenhower(el){
       ondragleave="this.classList.remove('dragover')" ondrop="eiDrop(event,'${q}')">
       <h4>${name} <span class="qc">${qt.length}</span>
         <span style="margin-left:auto;font-size:10px;color:var(--ink3);font-weight:500">${hint}</span></h4>
-      ${qt.map(cardHTML).join('')||'<div class="empty">Seret tugas ke sini</div>'}
+      ${qt.map(cardHTML).join('')||'<div class="empty">Drag tasks here</div>'}
     </div>`;}).join('')}</div>`;
 }
 function eiDrop(e,q){
@@ -1491,7 +1509,7 @@ function renderSidebar(){
       <span class="ic">${ic('kanban')}</span><span class="lbl">Kanban</span></button>
     <div class="sb-heading" style="display:flex;align-items:center">
       <span style="flex:1">Lists</span>
-      <button class="sb-addbtn" title="Tambah folder induk" onclick="event.stopPropagation();addGroup()">${ic('plus',15)}</button>
+      <button class="sb-addbtn" title="Add parent folder" onclick="event.stopPropagation();addGroup()">${ic('plus',15)}</button>
     </div>
     ${groups().map(g=>{
       const open=S.ui.foldOpen[g.id]!==false;
@@ -1501,7 +1519,7 @@ function renderSidebar(){
           <button class="sb-chev ${open?'':'closed'}" onclick="event.stopPropagation();toggleGroup('${g.id}')">${ic('chevDown',12)}</button>
           <span class="ic" style="color:${g.color}" onclick="goFolder('${g.id}')">${ic(g.icon)}</span>
           <span class="lbl" onclick="goFolder('${g.id}')">${esc(g.name)}</span>
-          <button class="sb-mini" title="Tambah subfolder" onclick="event.stopPropagation();addSub('${g.id}')">${ic('plus',14)}</button>
+          <button class="sb-mini" title="Add subfolder" onclick="event.stopPropagation();addSub('${g.id}')">${ic('plus',14)}</button>
           <button class="sb-mini" title="Edit folder" onclick="event.stopPropagation();editFolder('${g.id}')">${ic('dots',14)}</button>
           <span class="cnt">${folderCount(g.id)}</span>
         </div>
@@ -1511,11 +1529,11 @@ function renderSidebar(){
             <span class="lbl" onclick="goFolder('${f.id}')">${esc(f.name)}</span>
             <button class="sb-mini" title="Edit subfolder" onclick="event.stopPropagation();editFolder('${f.id}')">${ic('dots',14)}</button>
             <span class="cnt">${folderCount(f.id)}</span></div>`).join('')
-          :`<div class="sb-empty-sub">Belum ada subfolder · <a onclick="addSub('${g.id}')">tambah</a></div>`}
+          :`<div class="sb-empty-sub">No subfolders yet · <a onclick="addSub('${g.id}')">add</a></div>`}
         </div>
       </div>`;
     }).join('')}
-    <button class="sb-addgroup" onclick="addGroup()">${ic('plus',14)} Folder induk baru</button>`;
+    <button class="sb-addgroup" onclick="addGroup()">${ic('plus',14)} New parent folder</button>`;
 }
 function renderRail(){
   const r=document.getElementById('rail');
@@ -1523,15 +1541,14 @@ function renderRail(){
   const u=window.__USER;
   const avatarInner = (u&&u.photo)? `<img src="${u.photo}" alt="">` : (u&&u.name? u.name[0].toUpperCase() : 'A');
   r.innerHTML=`<img class="rail-logo" src="${APP_LOGO}" alt="A31 Board" title="A31 Board">` +
-    `<div class="avatar" title="${u?esc(u.name||u.email||''):'Akun'}" onclick="railAccount()">${avatarInner}</div>` +
+    `<div class="avatar" title="${u?esc(u.name||u.email||''):'Account'}" onclick="railAccount()">${avatarInner}</div>` +
     items.map(([k,icn,lbl])=>{
-      const n=smartCount(k);
       return `<button class="rail-btn ${S.ui.smart===k&&['kanban','split'].includes(S.ui.view)?'active':''}"
-        onclick="goSmart('${k}')">${ic(icn,20)}${n?`<span class="badge">${n}</span>`:''}<span class="tip">${lbl}</span></button>`;
+        onclick="goSmart('${k}')">${ic(icn,20)}<span class="tip">${lbl}</span></button>`;
     }).join('') +
     `<button class="rail-btn ${S.ui.view==='calendar'?'active':''}" onclick="goView('calendar')">${ic('calendar',20)}<span class="tip">Calendar</span></button>
      <button class="rail-btn ${S.ui.view==='eisenhower'?'active':''}" onclick="goView('eisenhower')">${ic('matrix',20)}<span class="tip">Eisenhower</span></button>
-     <button class="rail-btn" onclick="document.getElementById('search').focus()">${ic('search',20)}<span class="tip">Cari</span></button>
+     <button class="rail-btn" onclick="document.getElementById('search').focus()">${ic('search',20)}<span class="tip">Search</span></button>
      <div class="spacer"></div>
      <button class="rail-btn ${S.ui.view==='dashboard'?'active':''}" onclick="goView('dashboard')">${ic('dashboard',20)}<span class="tip">Dashboard</span></button>`;
 }
@@ -1558,8 +1575,13 @@ function tabSearch(){
 }
 function railAccount(){
   const n=S.tasks.length, done=S.tasks.filter(t=>t.done).length;
-  alert('A31 Board\n\nTotal tugas: '+n+'\nSelesai: '+done+'\nSinkron: Firebase (mode solo)\n\nKlik OK untuk menyegarkan.');
+  alert('A31 Board\n\nTotal tasks: '+n+'\nCompleted: '+done+'\nSync: Firebase (solo mode)\n\nClick OK to refresh.');
   location.reload();
+}
+function toggleCompleted(){ S.ui.showCompleted = (S.ui.showCompleted===false); save(); render(); }
+function toggleSidebar(){
+  if(isMobile()){ openDrawer(); return; }
+  S.ui.sidebarHidden = !S.ui.sidebarHidden; save(); render();
 }
 function openDrawer(){ document.getElementById('sidebar').classList.add('open');
   document.getElementById('drawer-bg').classList.add('show'); }
@@ -1580,15 +1602,25 @@ function renderTopbar(){
   const seg=document.getElementById('groupseg');
   if(['kanban','split'].includes(S.ui.view)){
     seg.style.display='flex';
-    seg.innerHTML=[['folder','Folder'],['status','Status'],['priority','Prioritas'],['date','Due']]
+    seg.innerHTML=[['folder','Folder'],['status','Status'],['priority','Priority'],['date','Due']]
       .map(([v,l])=>`<button class="${S.ui.groupBy===v?'active':''}"
         onclick="S.ui.groupBy='${v}';save();render()">${l}</button>`).join('');
   } else seg.style.display='none';
+  const ctBtn=document.getElementById('completed-toggle');
+  if(ctBtn){
+    const hidden = S.ui.showCompleted===false;
+    ctBtn.classList.toggle('off', hidden);
+    ctBtn.innerHTML = hidden
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg> Completed`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg> Completed`;
+    ctBtn.title = hidden ? 'Show completed tasks' : 'Hide completed tasks';
+  }
 }
 
 /* ---------- Master render ---------- */
 function render(){
   if(S.ui.view==='split'&&isMobile()) S.ui.view='kanban';
+  document.getElementById('app').classList.toggle('sidebar-hidden', !!S.ui.sidebarHidden && !isMobile());
   renderRail(); renderSidebar(); renderTabbar(); renderTopbar();
   const c=document.getElementById('content');
   switch(S.ui.view){
@@ -1617,7 +1649,7 @@ function hideGate(){
   document.getElementById('app').style.display='flex';
 }
 window.__onAuthError=(m)=>{ const b=document.getElementById('btn-google'); if(b) b.disabled=false;
-  const st=document.getElementById('ag-status'); if(st){st.textContent='Gagal login: '+m; st.className='ag-status err';} };
+  const st=document.getElementById('ag-status'); if(st){st.textContent='Login failed: '+m; st.className='ag-status err';} };
 
 // expose logout for the avatar menu
 window.__logout=()=>{ location.reload(); };
@@ -1658,17 +1690,13 @@ function dueBadgeCount(){
    PENTING: clearAppBadge() dipanggil saat 0 supaya "logo notifikasi"
    benar-benar hilang setelah tugas dibuka/diselesaikan. */
 async function refreshAppBadge(){
+  // Red dot disabled everywhere: always clear the app icon badge.
   try{
-    const n=dueBadgeCount();
-    if('setAppBadge' in navigator){
-      if(n>0) await navigator.setAppBadge(n);
-      else    await navigator.clearAppBadge();
-    }
-    // Beri tahu service worker juga (untuk kasus PWA di background)
+    if('clearAppBadge' in navigator){ await navigator.clearAppBadge(); }
     if(navigator.serviceWorker && navigator.serviceWorker.controller){
-      navigator.serviceWorker.controller.postMessage({type:'badge', count:n});
+      navigator.serviceWorker.controller.postMessage({type:'badge', count:0});
     }
-  }catch(e){ /* diamkan: sebagian browser belum dukung Badging API */ }
+  }catch(e){ /* some browsers don't support the Badging API */ }
 }
 
 /* --------- Notifikasi deadline (khusus perangkat yang mendukung) --------- */
@@ -1726,13 +1754,13 @@ function checkDeadlines(){
 
     let fire=false, title='', body='';
     if(t.due<td){
-      fire=true; title='⏰ Tugas terlewat';
-      body=`"${t.title}" sudah lewat tenggat (${fmtDate(t.due)}).`;
+      fire=true; title='⏰ Task overdue';
+      body=`"${t.title}" is past its due date (${fmtDate(t.due)}).`;
     } else if(t.due===td){
       // kalau ada jam: notif saat jam tersebut tiba; kalau tidak, notif sejak awal hari
       if(!t.time || t.time<=hhmm){
-        fire=true; title='📌 Deadline hari ini';
-        body=`"${t.title}" jatuh tempo hari ini${t.time?(' jam '+t.time):''}.`;
+        fire=true; title='📌 Due today';
+        body=`"${t.title}" is due today${t.time?(' at '+t.time):''}.`;
       }
     }
     if(fire){ fireNotification(title, body, 'a31-'+key); notified[key]=td; }
