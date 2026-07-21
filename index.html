@@ -498,12 +498,19 @@ window.__FB = {
   },
   login(){
     const provider = new GoogleAuthProvider();
-    signInWithPopup(fbAuth, provider).catch(err=>{
-      // Popup diblokir? fallback ke redirect.
-      if(err && (err.code==='auth/popup-blocked'||err.code==='auth/cancelled-popup-request'||err.code==='auth/operation-not-supported-in-this-environment')){
-        signInWithRedirect(fbAuth, provider);
-      } else { window.__onAuthError && window.__onAuthError(err.message||String(err)); }
-    });
+    provider.setCustomParameters({ prompt: 'select_account' });
+    return signInWithPopup(fbAuth, provider)
+      .then(res=>{
+        // Popup resolved with a user — drive the UI directly in case
+        // onAuthStateChanged is slow/blocked (COOP, PWA, some mobile browsers).
+        if(res && res.user && window.__onAuthUser){ window.__onAuthUser(res.user); }
+      })
+      .catch(err=>{
+        // Popup diblokir/tidak didukung? fallback ke redirect.
+        if(err && (err.code==='auth/popup-blocked'||err.code==='auth/cancelled-popup-request'||err.code==='auth/operation-not-supported-in-this-environment'||err.code==='auth/popup-closed-by-user')){
+          try{ signInWithRedirect(fbAuth, provider); }catch(e){ window.__onAuthError && window.__onAuthError((err.code||'')+' '+(err.message||'')); }
+        } else { window.__onAuthError && window.__onAuthError((err.code? err.code+': ':'')+(err.message||String(err))); }
+      });
   },
   logout(){ if(fbAuth) signOut(fbAuth); },
   watchAuth(cb){ if(fbAuth) onAuthStateChanged(fbAuth, cb); },
@@ -511,7 +518,12 @@ window.__FB = {
   bind(uid, onData){
     dbRef = ref(fbDb, 'users/'+uid+'/board');
     if(unsub) unsub();
-    unsub = onValue(dbRef, snap => onData(snap.val()));
+    unsub = onValue(dbRef,
+      snap => onData(snap.val()),
+      err => { // permission-denied atau rules belum di-publish
+        console.warn('DB read error:', err && err.message);
+        window.__onDbError && window.__onDbError(err && err.message);
+      });
   },
   push(uid, payload){
     return set(ref(fbDb,'users/'+uid+'/board'), payload);
@@ -1576,23 +1588,46 @@ document.getElementById('btn-google').addEventListener('click', ()=>{
   }
   document.getElementById('btn-google').disabled=true;
   document.getElementById('ag-status').textContent='Membuka jendela Google…';
-  window.__FB.login();
+  // Safety: if auth doesn't complete in 12s, re-enable so user can retry.
+  clearTimeout(window.__loginTO);
+  window.__loginTO=setTimeout(()=>{
+    const gateOpen=!document.getElementById('auth-gate').classList.contains('hidden');
+    if(gateOpen){
+      const b=document.getElementById('btn-google'); if(b) b.disabled=false;
+      const st=document.getElementById('ag-status');
+      if(st && !st.classList.contains('err')){ st.textContent='Login belum selesai. Coba lagi (pastikan popup tidak diblokir).'; }
+    }
+  }, 12000);
+  const p=window.__FB.login();
+  if(p && p.finally){ p.finally(()=>clearTimeout(window.__loginTO)); }
 });
 
 function bootAuth(){
   if(!S.ui.groupBy) S.ui.groupBy='status';
   if(window.__FB && window.__FB.configured){
     showGate('');
-    window.__FB.watchAuth(async (user)=>{
-      if(user){
-        // paint avatar into rail after render
-        window.__USER={name:user.displayName,email:user.email,photo:user.photoURL,uid:user.uid};
-        hideGate();
-        await startSync(user.uid);
-      } else {
-        window.__USER=null;
-        showGate('');
+    // Shared handler: called by BOTH onAuthStateChanged and the direct popup result.
+    let handled=false;
+    window.__onAuthUser=async (user)=>{
+      if(!user || handled) return;
+      handled=true;
+      window.__USER={name:user.displayName,email:user.email,photo:user.photoURL,uid:user.uid};
+      hideGate();
+      try{ await startSync(user.uid); }catch(e){ console.warn('startSync error',e); }
+    };
+    window.__onDbError=(msg)=>{
+      // Rules belum di-publish / permission denied — app tetap jalan (local cache),
+      // tampilkan status supaya user tahu sinkron cloud belum aktif.
+      setSync('error');
+      const st=document.getElementById('ag-status');
+      if(st && !document.getElementById('auth-gate').classList.contains('hidden')){
+        st.textContent='Login OK, tapi akses database ditolak. Publish Database Rules di Firebase Console.';
+        st.className='ag-status err';
       }
+    };
+    window.__FB.watchAuth(async (user)=>{
+      if(user){ window.__onAuthUser(user); }
+      else { window.__USER=null; handled=false; showGate(''); }
     });
   } else {
     // No Firebase config yet: show gate but allow "local mode" via the button.
