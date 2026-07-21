@@ -497,7 +497,7 @@ const firebaseConfig = {
 };
 
 const CONFIGURED = !firebaseConfig.apiKey.startsWith("GANTI");
-window.__BUILD = 'sync-fix-2026-07-22-folders';   // penanda build; cek di console: __BUILD
+window.__BUILD = 'sync-fix-2026-07-22-c';   // penanda build; cek di console: __BUILD
 console.log('[A31] build', window.__BUILD, 'configured=', CONFIGURED);
 let fbApp, fbAuth, fbDb, fbUser=null, dbRef=null, unsub=null;
 
@@ -773,18 +773,28 @@ async function startSync(uid){
     }
     window.__FB.bind(uid, (remote)=>{
       applyingRemote=true;
-      const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
+      // Firebase bisa mengembalikan tasks/folders sebagai OBJECT (bukan array).
+      // Deteksi "ada data" secara toleran terhadap kedua bentuk.
+      const cnt = v => Array.isArray(v) ? v.length : (v && typeof v==='object' ? Object.keys(v).length : 0);
+      const hasRemoteBoard = remote && (cnt(remote.tasks)>0 || cnt(remote.folders)>0);
       if(hasRemoteBoard){
-        // Data server ada → pakai itu (menang atas cache lokal).
-        hydrate(remote);
-        __remoteArrived=true;
-        writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
-        applyingRemote=false;
-        setSync('saved');
-        render();
+        window.__serverHadData = true;   // LINDUNGI: server punya data nyata.
+        try{
+          hydrate(remote);               // hydrate menormalkan object→array & field hilang
+          __remoteArrived=true;
+          writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+          applyingRemote=false;
+          __lastError='';
+          setSync('saved');
+          render();
+        }catch(err){
+          applyingRemote=false;
+          __lastError='hydrate: '+(err&&err.message||String(err));
+          console.error('[A31] hydrate crash on remote data:', err);
+          setSync('error');
+        }
       } else {
         // Server benar-benar KOSONG (belum pernah ada board).
-        // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
         if(!__remoteArrived){
           __remoteArrived=true;
           if(!Array.isArray(S.tasks) || S.tasks.length===0){
@@ -805,14 +815,43 @@ async function startSync(uid){
 }
 
 let saveTimer=null;
+// Pemulihan darurat: baca ulang board langsung dari server & tampilkan.
+function forceReloadFromServer(){
+  if(!(window.__FB && window.__FB.configured)){ alert('Firebase not configured.'); return; }
+  setSync('saving');
+  import('https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js')
+    .then(m=>{ const db=m.getDatabase(); return m.get(m.ref(db,'users/'+(CURRENT_UID||'solo')+'/board')); })
+    .then(snap=>{
+      const d=snap.val();
+      const cnt=v=>Array.isArray(v)?v.length:(v&&typeof v==='object'?Object.keys(v).length:0);
+      if(d && (cnt(d.tasks)>0 || cnt(d.folders)>0)){
+        window.__serverHadData=true;
+        applyingRemote=true;
+        try{ hydrate(d); __remoteArrived=true; writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}}); }
+        finally{ applyingRemote=false; }
+        __lastError=''; setSync('saved'); render();
+        alert('Reloaded from server: '+S.tasks.length+' tasks, '+S.folders.length+' folders.');
+      } else {
+        alert('Server board is empty (no tasks/folders found at users/'+(CURRENT_UID||'solo')+'/board).');
+        setSync('error');
+      }
+    })
+    .catch(e=>{ __lastError='reload: '+(e&&e.message||String(e)); setSync('error'); alert('Reload failed: '+__lastError); });
+}
+
 function pushRemote(){
-  // Pengaman: jangan pernah menulis board KOSONG ke server sebelum kita
-  // menerima snapshot pertama. Ini mencegah satu perangkat menghapus data
-  // perangkat lain saat baru start (last-write-wins yang merusak).
+  // PENGAMAN KUAT: jangan pernah menulis board yang tampak KOSONG ke server.
+  // Ini mencegah bug/crash render menimpa & menghapus data yang sudah ada.
   const emptyBoard = (!Array.isArray(S.tasks) || S.tasks.length===0);
-  if(emptyBoard && !__remoteArrived){
-    // Belum ada apa-apa untuk ditulis & belum terima snapshot: jangan klaim 'Synced'.
-    return;
+  // Kalau board kosong DAN server pernah/masih punya data → tolak push (lindungi data).
+  if(emptyBoard){
+    if(!__remoteArrived) return;                 // belum terima snapshot: tunggu.
+    if(window.__serverHadData) {                 // server punya data, tapi lokal kosong:
+      console.warn('[A31] Blocked empty-board push to protect existing data.');
+      __lastError='Push blocked: refusing to overwrite server data with empty board';
+      setSync('error');
+      return;
+    }
   }
   const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
   writeLocalCache(payload);
@@ -843,11 +882,19 @@ function setSync(st){
     const initErr = (typeof window!=='undefined' && window.__initError) ? ('\n\nInit error:\n'+window.__initError) : '';
     const cfg = (window.__FB && window.__FB.configured) ? 'configured=YES' : 'configured=NO';
     const online = (navigator.onLine===false)?'browser=OFFLINE':'browser=online';
-    const diag = '\n\n['+cfg+', '+online+']';
+    const diag = '\n\n['+cfg+', '+online+', build '+(window.__BUILD||'?')+']';
+    const localCount = 'Local: '+(S.tasks?S.tasks.length:0)+' tasks, '+(S.folders?S.folders.length:0)+' folders';
     const msg = __lastRemoteOk
-      ? ('Firebase: CONNECTED\nLast write reached the server.'+(__lastError?('\n\nMost recent error (recovered):\n'+__lastError):'')+initErr+diag)
-      : ('Firebase: NOT CONNECTED (this device)\nData is saved locally but has NOT reached the server.'+(__lastError?('\n\nError:\n'+__lastError):'\n\nNo error captured yet — try creating a task.')+initErr+diag);
-    alert(msg);
+      ? ('Firebase: CONNECTED\n'+localCount+(__lastError?('\n\nNote:\n'+__lastError):'')+initErr+diag)
+      : ('Firebase: NOT CONNECTED (this device)\n'+localCount+(__lastError?('\n\nError:\n'+__lastError):'\n\nNo error captured yet — try creating a task.')+initErr+diag);
+    // Kalau board kosong tapi server mungkin punya data → tawarkan muat ulang paksa.
+    if((!S.tasks || S.tasks.length===0)){
+      if(confirm(msg+'\n\n— Reload data from server now? (OK = reload)')){
+        forceReloadFromServer();
+      }
+    } else {
+      alert(msg);
+    }
   };
   // Kalau benar-benar tidak ada jaringan → Offline (apa pun state-nya).
   if(navigator.onLine===false){
@@ -1692,6 +1739,17 @@ function renderTopbar(){
 
 /* ---------- Master render ---------- */
 function render(){
+  try{
+    _renderInner();
+  }catch(err){
+    // Render gagal (mis. data server berbentuk tak terduga). Jangan diam:
+    // simpan error, tampilkan di status, dan JANGAN hentikan sync.
+    __lastError = 'render: '+(err&&err.message||String(err));
+    console.error('[A31] render crash:', err);
+    try{ const c=document.getElementById('content'); if(c) c.innerHTML='<div class="empty" style="padding:24px">Display error — data is safe. Tap the status indicator for details.</div>'; }catch(e){}
+  }
+}
+function _renderInner(){
   if(S.ui.view==='split'&&isMobile()) S.ui.view='kanban';
   document.getElementById('app').classList.toggle('sidebar-hidden', !!S.ui.sidebarHidden && !isMobile());
   renderRail(); renderSidebar(); renderTabbar(); renderTopbar();
