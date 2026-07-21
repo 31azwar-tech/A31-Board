@@ -700,11 +700,27 @@ function writeLocalCache(payload){ try{ localStorage.setItem(cacheKey(), JSON.st
 function hydrate(d){
   if(!d) return;
   // Server = sumber kebenaran. Ambil apa adanya dari snapshot.
-  S.folders = (d.folders && d.folders.length) ? d.folders : S.folders;
-  S.tasks   = Array.isArray(d.tasks) ? d.tasks : [];
+  // PENTING: Firebase RTDB menghapus array kosong & nilai null saat menyimpan,
+  // sehingga field seperti `subtasks`/`tags` bisa hilang (undefined) dan
+  // membuat render() crash saat membaca .length. Normalisasi di sini.
+  const arr = v => Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
+  S.folders = (d.folders && (d.folders.length || Object.keys(d.folders).length)) ? arr(d.folders) : S.folders;
+  S.tasks   = arr(d.tasks).map(normalizeTask).filter(Boolean);
   S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
+}
+// Pastikan setiap task punya field yang diharapkan render() (anti-undefined).
+function normalizeTask(t){
+  if(!t || typeof t!=='object') return null;
+  t.subtasks = Array.isArray(t.subtasks) ? t.subtasks
+             : (t.subtasks && typeof t.subtasks==='object' ? Object.values(t.subtasks) : []);
+  t.tags     = Array.isArray(t.tags) ? t.tags
+             : (t.tags && typeof t.tags==='object' ? Object.values(t.tags) : []);
+  if(typeof t.title!=='string') t.title = t.title==null ? '' : String(t.title);
+  if(typeof t.done!=='boolean') t.done = !!t.done;
+  if(!t.id) t.id = 't'+Math.random().toString(36).slice(2,9);
+  return t;
 }
 // Backward-compat: if a saved board used the old flat folders (no parentId),
 // wrap them under a "New Life 3.0" group so nothing breaks.
