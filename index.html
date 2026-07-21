@@ -425,43 +425,6 @@ optgroup{font-size:11px;color:var(--ink3)}
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
 <body>
-<!-- ===== [DIAGNOSTIK — HAPUS SETELAH SELESAI] Penampil error di layar ===== -->
-<div id="diag" style="position:fixed;left:0;right:0;bottom:0;z-index:99999;max-height:45vh;overflow:auto;
-  background:#1a0000;color:#ffd7d7;font:12px/1.45 monospace;padding:8px 10px;border-top:3px solid #E5484D;
-  white-space:pre-wrap;word-break:break-word;box-shadow:0 -4px 12px rgba(0,0,0,.4)">
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-    <b style="color:#ff9d9d">DIAGNOSTIK A31</b>
-    <button onclick="document.getElementById('diag-log').textContent='';" style="font:11px monospace;padding:2px 8px">clear</button>
-    <button onclick="document.getElementById('diag').style.display='none';" style="font:11px monospace;padding:2px 8px">tutup</button>
-    <span id="diag-stage" style="margin-left:auto;color:#9dffb0"></span>
-  </div>
-  <div id="diag-log"></div>
-</div>
-<script>
-/* [DIAGNOSTIK] Tangkap semua error sedini mungkin, tampilkan di layar HP. */
-(function(){
-  var box=null;
-  function el(){ return box || (box=document.getElementById('diag-log')); }
-  function line(kind,msg){
-    try{
-      var t=new Date().toISOString().slice(11,19);
-      var node=el(); if(!node) return;
-      node.textContent += '['+t+'] '+kind+': '+msg+'\n';
-    }catch(_){}
-  }
-  window.__diag = { stage:function(s){ try{ var n=document.getElementById('diag-stage'); if(n) n.textContent='tahap: '+s; line('STAGE',s); }catch(_){} }, log:line };
-  window.addEventListener('error', function(e){
-    var m = e.error && e.error.stack ? e.error.stack : (e.message + ' @ ' + (e.filename||'') + ':' + (e.lineno||'') + ':' + (e.colno||''));
-    line('ERROR', m);
-  });
-  window.addEventListener('unhandledrejection', function(e){
-    var r = e.reason; var m = (r && r.stack) ? r.stack : (r && r.message) ? r.message : String(r);
-    line('PROMISE-REJECT', m);
-  });
-  line('INFO','Diagnostik aktif. UA='+navigator.userAgent);
-  line('INFO','secureContext='+window.isSecureContext+' | serviceWorker='+('serviceWorker' in navigator)+' | setAppBadge='+('setAppBadge' in navigator)+' | clearAppBadge='+('clearAppBadge' in navigator));
-})();
-</script>
 <!-- ===== Login gate ===== -->
 <div id="auth-gate">
   <div class="ag-card">
@@ -564,8 +527,9 @@ window.__FB = {
   }
 };
 // Surface redirect-login errors if any
-try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){ console.error('Init Firebase gagal:', e); }
-// Penanda bahwa modul Firebase sudah selesai dimuat (untuk polling di app script)
+try { if(CONFIGURED){ window.__FB.init(); getRedirectResult(getAuth(fbApp)).catch(()=>{}); } } catch(e){
+  console.error('A31: init Firebase gagal —', e && (e.message||e));
+}
 window.__FB_MODULE_LOADED = true;
 </script>
 
@@ -693,10 +657,18 @@ function writeLocalCache(payload){ try{ localStorage.setItem(cacheKey(), JSON.st
 
 function hydrate(d){
   if(!d) return;
-  // Server = sumber kebenaran. Ambil apa adanya dari snapshot.
+  // Server = sumber kebenaran UNTUK DATA (tasks & folders).
   S.folders = (d.folders && d.folders.length) ? d.folders : S.folders;
   S.tasks   = Array.isArray(d.tasks) ? d.tasks : [];
-  S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
+  // JANGAN menimpa state navigasi/tampilan (view, groupBy, smart, folder) dari
+  // server — itu bikin Matrix berubah jadi Kanban / kolom kosong. Hanya ambil
+  // preferensi yang aman dan bersifat data (buka-tutup folder, dsb).
+  const rui = d.ui || {};
+  if(rui.foldOpen)  S.ui.foldOpen  = rui.foldOpen;
+  if(rui.collapsed) S.ui.collapsed = rui.collapsed;
+  if(rui.sort)      S.ui.sort      = rui.sort;
+  if(typeof rui.seeded==='boolean') S.ui.seeded = rui.seeded;
+  S.ui.search='';
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
 }
@@ -723,38 +695,27 @@ function migrateFolders(){
 
 // Called once user is known. Loads cache instantly, then subscribes to realtime DB.
 let __remoteArrived=false;   // apakah snapshot pertama dari server sudah datang?
-let __fbBound=false;         // guard supaya tidak subscribe ke Firebase dua kali
+let __boundToFirebase=false;
 
-/* Tunggu modul Firebase (dimuat asinkron dari CDN) benar-benar siap.
-   Di HP, script app sering jalan sebelum modul selesai — jadi kita polling
-   ringan tiap 100ms, maksimal ~10 detik. Kalau timeout → callback(false)
-   sebagai fallback ke mode lokal. */
-function whenFirebaseReady(callback){
-  const INTERVAL=100, MAX=10000; // ms
-  let waited=0;
-  const timer=setInterval(()=>{
-    if(window.__FB && typeof window.__FB.configured !== 'undefined'){
-      clearInterval(timer);
-      callback(true);
-    } else if((waited+=INTERVAL) >= MAX){
-      clearInterval(timer);
-      callback(false); // timeout → mode lokal
-    }
-  }, INTERVAL);
+// Tunggu sampai modul Firebase (window.__FB) selesai dimuat dari CDN.
+// KRITIKAL untuk mobile: di HP, SDK dari gstatic bisa selesai LEBIH LAMBAT
+// daripada script app ini; tanpa menunggu, HP salah masuk mode "Lokal".
+function whenFirebaseReady(cb){
+  let tries=0;
+  (function poll(){
+    if(window.__FB && typeof window.__FB.configured!=='undefined'){ cb(window.__FB.configured); return; }
+    if(tries++ > 100){ cb(false); return; }   // ~10 dtk lalu menyerah → lokal
+    setTimeout(poll, 100);
+  })();
 }
 
-/* Subscribe ke Firebase. Dipisah dari startSync supaya bisa dipanggil
-   setelah modul siap. Guard __fbBound mencegah subscribe ganda. */
 function bindFirebase(uid){
-  if(__fbBound) return;
-  __fbBound=true;
-  try{ window.__diag && window.__diag.stage('bindFirebase: subscribe ke server'); }catch(_){}
+  if(__boundToFirebase) return;
+  __boundToFirebase=true;
   window.__FB.bind(uid, (remote)=>{
-    try{ window.__diag && window.__diag.stage('snapshot remote diterima: tasks='+(remote&&Array.isArray(remote.tasks)?remote.tasks.length:'?')+' folders='+(remote&&remote.folders?remote.folders.length:'?')+' ui.view='+(remote&&remote.ui&&remote.ui.view)+' ui.folder='+(remote&&remote.ui&&remote.ui.folder)); }catch(_){}
     applyingRemote=true;
     const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
     if(hasRemoteBoard){
-      // Data server ada → pakai itu (menang atas cache lokal).
       hydrate(remote);
       __remoteArrived=true;
       writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
@@ -762,15 +723,13 @@ function bindFirebase(uid){
       setSync('saved');
       render();
     } else {
-      // Server benar-benar KOSONG (belum pernah ada board).
-      // Seed hanya sekali, lalu push ke server sebagai isi awal bersama.
       if(!__remoteArrived){
         __remoteArrived=true;
         if(!Array.isArray(S.tasks) || S.tasks.length===0){
           if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
         }
-        applyingRemote=false;   // izinkan push berikutnya
-        pushRemote();           // tulis isi awal ke server
+        applyingRemote=false;
+        pushRemote();
         writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
         setSync('saved');
         render();
@@ -783,29 +742,28 @@ function bindFirebase(uid){
 
 async function startSync(uid){
   CURRENT_UID = uid;
-  // 1) instant paint from local cache (offline-first) — HANYA untuk tampilan awal.
-  //    Jangan seed di sini; tunggu server supaya tidak menimpa data perangkat lain.
+  // 1) tampilan awal dari cache lokal (offline-first). Jangan seed di sini.
   const cached = readLocalCache();
   if(cached){ hydrate(cached); }
   render();
   if(new URLSearchParams(location.search).get('add')==='1'){ setTimeout(()=>{ try{ openAddTask(new Event('click')); }catch(e){} }, 300); }
 
-  // 2) subscribe to Firebase; remote SELALU sumber kebenaran begitu tiba.
-  //    Keputusan online vs lokal DITUNDA sampai modul Firebase siap (penting
-  //    untuk HP yang lambat). Selagi menunggu, tampilkan status "Menyimpan…".
-  try{ window.__diag && window.__diag.stage('startSync: render pertama selesai, menunggu Firebase'); }catch(_){}
+  // 2) subscribe ke Firebase — TUNGGU modulnya siap dulu (kritikal untuk mobile).
   setSync('saving');
-  whenFirebaseReady((ready)=>{
-    try{ window.__diag && window.__diag.stage('whenFirebaseReady callback ready='+ready+' __FB='+(!!window.__FB)+' configured='+(window.__FB&&window.__FB.configured)); }catch(_){}
-    if(ready && window.__FB && window.__FB.configured){
-      bindFirebase(uid);
+  whenFirebaseReady((configured)=>{
+    if(configured){
+      try{ bindFirebase(uid); }
+      catch(e){ console.warn('bindFirebase gagal:', e); setSync('error'); }
     } else {
-      setSync('error'); // no config / timeout -> local-only mode
+      setSync('error'); // tak ada config / modul gagal → mode lokal
     }
   });
 }
 
 let saveTimer=null;
+// Hanya kirim preferensi UI yang aman ke server (bukan view/groupBy/smart/folder),
+// supaya tidak mengacaukan tampilan perangkat lain.
+function safeUI(){ return { foldOpen:S.ui.foldOpen||{}, collapsed:S.ui.collapsed||{}, sort:S.ui.sort||{}, seeded:!!S.ui.seeded }; }
 function pushRemote(){
   // Pengaman: jangan pernah menulis board KOSONG ke server sebelum kita
   // menerima snapshot pertama. Ini mencegah satu perangkat menghapus data
@@ -815,8 +773,10 @@ function pushRemote(){
     setSync('saved');   // tampilkan aman; tunggu server dulu
     return;
   }
-  const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
-  writeLocalCache(payload);
+  // Cache lokal menyimpan UI penuh (biar tampilan lokal konsisten setelah reload),
+  // tapi payload ke server hanya membawa UI yang aman.
+  writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+  const payload={folders:S.folders,tasks:S.tasks,ui:safeUI(),updatedAt:Date.now()};
   if(window.__FB && window.__FB.configured && CURRENT_UID){
     window.__FB.push(CURRENT_UID, payload)
       .then(()=>setSync('saved'))
@@ -1663,24 +1623,17 @@ function renderTopbar(){
 
 /* ---------- Master render ---------- */
 function render(){
-  try{ window.__diag && window.__diag.stage('render() view='+(S.ui&&S.ui.view)); }catch(_){}
   if(S.ui.view==='split'&&isMobile()) S.ui.view='kanban';
-  try{ renderRail(); }catch(e){ window.__diag&&window.__diag.log('THROW','renderRail: '+(e.stack||e.message)); throw e; }
-  try{ renderSidebar(); }catch(e){ window.__diag&&window.__diag.log('THROW','renderSidebar: '+(e.stack||e.message)); throw e; }
-  try{ renderTabbar(); }catch(e){ window.__diag&&window.__diag.log('THROW','renderTabbar: '+(e.stack||e.message)); throw e; }
-  try{ renderTopbar(); }catch(e){ window.__diag&&window.__diag.log('THROW','renderTopbar: '+(e.stack||e.message)); throw e; }
+  renderRail(); renderSidebar(); renderTabbar(); renderTopbar();
   const c=document.getElementById('content');
-  try{
-    switch(S.ui.view){
-      case 'dashboard': renderDash(c); break;
-      case 'calendar': renderCalendar(c,false); break;
-      case 'split': renderSplit(c); break;
-      case 'timeline': renderTimeline(c); break;
-      case 'eisenhower': renderEisenhower(c); break;
-      default: renderBoard(c);
-    }
-  }catch(e){ window.__diag&&window.__diag.log('THROW','render view "'+(S.ui&&S.ui.view)+'": '+(e.stack||e.message)); throw e; }
-  try{ window.__diag && window.__diag.stage('render() selesai, content len='+(c?c.innerHTML.length:'no #content')); }catch(_){}
+  switch(S.ui.view){
+    case 'dashboard': renderDash(c); break;
+    case 'calendar': renderCalendar(c,false); break;
+    case 'split': renderSplit(c); break;
+    case 'timeline': renderTimeline(c); break;
+    case 'eisenhower': renderEisenhower(c); break;
+    default: renderBoard(c);
+  }
   refreshAppBadge();      // sinkronkan angka merah di ikon aplikasi
   scheduleDeadlineChecks(); // pastikan pengingat deadline aktif
 }
@@ -1710,7 +1663,6 @@ window.__logout=()=>{ location.reload(); };
    data yang sama tanpa perlu login. */
 const SOLO_UID='solo';
 function bootAuth(){
-  try{ window.__diag && window.__diag.stage('bootAuth mulai'); }catch(_){}
   if(!S.ui.groupBy) S.ui.groupBy='status';
   hideGate();
   window.__USER=null;
@@ -1737,21 +1689,14 @@ function dueBadgeCount(){
   return S.tasks.filter(t=>!t.done && t.due && t.due<=td).length;
 }
 
-/* Set / hapus lencana pada ikon aplikasi (Desktop PWA & Android).
-   PENTING: clearAppBadge() dipanggil saat 0 supaya "logo notifikasi"
-   benar-benar hilang setelah tugas dibuka/diselesaikan. */
+/* Ikon merah pada aplikasi TIDAK diinginkan → selalu bersihkan lencana. */
 async function refreshAppBadge(){
   try{
-    // Lencana angka pada ikon aplikasi dinonaktifkan: SELALU bersihkan,
-    // jangan pernah memasang angka.
-    if('clearAppBadge' in navigator){
-      await navigator.clearAppBadge();
-    }
-    // Beri tahu service worker juga (untuk kasus PWA di background)
+    if('clearAppBadge' in navigator) await navigator.clearAppBadge();
     if(navigator.serviceWorker && navigator.serviceWorker.controller){
       navigator.serviceWorker.controller.postMessage({type:'badge', count:0});
     }
-  }catch(e){ /* diamkan: sebagian browser belum dukung Badging API */ }
+  }catch(e){ /* diamkan */ }
 }
 
 /* --------- Notifikasi deadline (khusus perangkat yang mendukung) --------- */
