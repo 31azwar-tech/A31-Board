@@ -731,6 +731,7 @@ function save(){
 }
 
 let __lastRemoteOk=false;   // pernah berhasil baca/tulis ke Firebase?
+let __notifTimer=null;      // dideklarasikan lebih awal: dipakai render()/bootAuth() sebelum blok notifikasi
 function setSync(st){
   const el=document.getElementById('sync'), tx=document.getElementById('sync-txt');
   if(!el||!tx) return;
@@ -1609,7 +1610,9 @@ function bootAuth(){
     setSync('error');
     console.warn('DB access denied:', msg);
   };
-  startSync(SOLO_UID).catch(e=>{ console.warn('startSync error',e); startSync('local'); });
+  // Selalu pakai SOLO_UID agar path cocok dengan rules (users/solo/board).
+  // Kalau gagal, coba ulang sekali dengan UID yang sama (bukan path lain).
+  startSync(SOLO_UID).catch(e=>{ console.warn('startSync error',e); setTimeout(()=>startSync(SOLO_UID).catch(()=>{}), 500); });
 }
 
 bootAuth();
@@ -1643,7 +1646,6 @@ async function refreshAppBadge(){
 }
 
 /* --------- Notifikasi deadline (khusus perangkat yang mendukung) --------- */
-let __notifTimer=null;
 const NOTIFIED_KEY='a31-notified-v1';
 
 function getNotified(){
