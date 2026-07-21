@@ -539,7 +539,13 @@ window.__FB = {
       });
   },
   push(uid, payload){
+    // Return the promise so callers can await success/failure honestly.
     return set(ref(fbDb,'users/'+uid+'/board'), payload);
+  },
+  probe(){
+    // Lightweight connectivity probe: write a heartbeat under the solo path.
+    try{ return set(ref(fbDb,'users/solo/_hb'), Date.now()); }
+    catch(e){ return Promise.reject(e); }
   }
 };
 // Surface redirect-login errors if any
@@ -711,6 +717,13 @@ async function startSync(uid){
 
   // 2) subscribe to Firebase; remote SELALU sumber kebenaran begitu tiba.
   if(window.__FB && window.__FB.configured){
+    // Probe tulis: buktikan perangkat ini benar-benar bisa menulis ke server.
+    // Ini yang membuat status di Android jujur sejak awal (bukan cuma dari cache).
+    if(window.__FB.probe){
+      window.__FB.probe()
+        .then(()=>{ __lastError=''; setSync('saved'); })
+        .catch((e)=>{ __lastError=(e&&(e.code||e.message))||String(e); setSync('error'); });
+    }
     window.__FB.bind(uid, (remote)=>{
       applyingRemote=true;
       const hasRemoteBoard = remote && (Array.isArray(remote.tasks) || (remote.folders && remote.folders.length));
@@ -731,9 +744,8 @@ async function startSync(uid){
             if(!S.ui.seeded){ S.tasks=seedTasks(); S.ui.seeded=true; }
           }
           applyingRemote=false;   // izinkan push berikutnya
-          pushRemote();           // tulis isi awal ke server
+          pushRemote();           // tulis isi awal ke server (pushRemote akan set status sendiri)
           writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
-          setSync('saved');
           render();
         } else {
           applyingRemote=false;
@@ -752,16 +764,16 @@ function pushRemote(){
   // perangkat lain saat baru start (last-write-wins yang merusak).
   const emptyBoard = (!Array.isArray(S.tasks) || S.tasks.length===0);
   if(emptyBoard && !__remoteArrived){
-    setSync('saved');   // tampilkan aman; tunggu server dulu
+    // Belum ada apa-apa untuk ditulis & belum terima snapshot: jangan klaim 'Synced'.
     return;
   }
   const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
   writeLocalCache(payload);
   if(window.__FB && window.__FB.configured && CURRENT_UID){
     window.__FB.push(CURRENT_UID, payload)
-      .then(()=>setSync('saved'))
-      .catch(()=>setSync('error'));
-  } else { setSync('error'); }
+      .then(()=>{ __lastError=''; setSync('saved'); })
+      .catch((e)=>{ __lastError=(e&&(e.code||e.message))||String(e); setSync('error'); });
+  } else { __lastError='Firebase not configured'; setSync('error'); }
 }
 
 // Public save() used everywhere in the app. Debounced. Skips echo of remote data.
@@ -773,28 +785,38 @@ function save(){
 }
 
 let __lastRemoteOk=false;   // pernah berhasil baca/tulis ke Firebase?
+let __lastError='';         // pesan error terakhir dari Firebase (untuk ditampilkan)
 let __notifTimer=null;      // dideklarasikan lebih awal: dipakai render()/bootAuth() sebelum blok notifikasi
 function setSync(st){
   const el=document.getElementById('sync'), tx=document.getElementById('sync-txt');
   if(!el||!tx) return;
+  el.style.cursor='pointer';
+  el.title = __lastError ? ('Firebase: '+__lastError+' — tap for details') : (__lastRemoteOk?'Connected to Firebase':'Not yet confirmed with Firebase');
+  el.onclick = ()=>{
+    const msg = __lastRemoteOk
+      ? ('Firebase: CONNECTED\nLast write reached the server.'+(__lastError?('\n\nMost recent error (recovered):\n'+__lastError):''))
+      : ('Firebase: NOT CONNECTED (this device)\nData is saved locally but has NOT reached the server.'+(__lastError?('\n\nError:\n'+__lastError):'\n\nNo error captured yet — try creating a task.'));
+    alert(msg);
+  };
   // Kalau benar-benar tidak ada jaringan → Offline (apa pun state-nya).
   if(navigator.onLine===false){
-    el.className='saved'; tx.textContent='Offline'; return;
+    el.className='saving'; tx.textContent='Offline'; return;
   }
-  if(st==='saved') __lastRemoteOk=true;
   if(st==='saving'){ el.className='saving'; tx.textContent='Saving…'; return; }
   if(st==='error'){
-    // 'error' di sini = tulis/baca DB gagal. Jika ini karena RULES (bukan jaringan),
-    // app tetap jalan dari cache; tampilkan "Lokal" bukan "Offline" biar tidak membingungkan.
+    // Write/read ke Firebase GAGAL untuk perangkat ini. Jangan sembunyikan:
+    // tampilkan "Local only" yang jelas supaya user tahu belum tersinkron.
     el.className='saving';
-    tx.textContent = __lastRemoteOk ? 'Saving…' : 'Local';
+    tx.textContent = 'Local only ⚠';
     return;
   }
+  // saved = write benar-benar sampai server
+  __lastRemoteOk=true;
   el.className='saved'; tx.textContent='Synced';
 }
 // Perbarui label saat status jaringan berubah
 window.addEventListener('online',  ()=>{ setSync(__lastRemoteOk?'saved':'error'); pushRemote(); });
-window.addEventListener('offline', ()=>setSync('saved'));
+window.addEventListener('offline', ()=>setSync('offline'));
 
 /* ---------- Smart natural-language parser (Bahasa Indonesia) ---------- */
 const DAYNAMES = {minggu:0,ahad:0,senin:1,selasa:2,rabu:3,kamis:4,jumat:5,"jum'at":5,sabtu:6,
@@ -1780,7 +1802,33 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) checkDe
 
 /* ---------- PWA: register service worker + install prompt ---------- */
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      // Paksa cek update tiap load supaya build lama tidak "nyangkut" di Android.
+      try{ reg.update(); }catch(e){}
+      // Bila ada SW baru menunggu, aktifkan & muat ulang sekali agar build terbaru dipakai.
+      reg.addEventListener('updatefound', ()=>{
+        const nw=reg.installing;
+        if(!nw) return;
+        nw.addEventListener('statechange', ()=>{
+          if(nw.state==='installed' && navigator.serviceWorker.controller){
+            try{ nw.postMessage&&nw.postMessage({type:'skip-waiting'}); }catch(e){}
+          }
+        });
+      });
+    }).catch(()=>{});
+    // Saat controller berganti (SW baru aktif), reload sekali.
+    let __reloaded=false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(__reloaded) return; __reloaded=true; location.reload();
+    });
+  });
+  // Cek update lagi tiap kali app kembali ke foreground (umum di HP).
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.visibilityState==='visible'){
+      navigator.serviceWorker.getRegistration().then(r=>{ if(r) try{ r.update(); }catch(e){} }).catch(()=>{});
+    }
+  });
 }
 let deferredPrompt=null;
 window.addEventListener('beforeinstallprompt', (e)=>{
