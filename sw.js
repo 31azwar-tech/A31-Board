@@ -2,7 +2,7 @@
    Tugas: (1) cache shell agar bisa offline, (2) sinkron lencana ikon,
    (3) tangani klik notifikasi deadline. */
 
-const CACHE = 'a31-board-v2';
+const CACHE = 'a31-board-v3';
 const SHELL = ['./', './index.html'];
 
 self.addEventListener('install', (e)=>{

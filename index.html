@@ -427,6 +427,44 @@ optgroup{font-size:11px;color:var(--ink3)}
 #tabbar .ti .ico{width:22px;height:22px}
 .icon-opt .ico{pointer-events:none}
 .pri-seg button .ico{vertical-align:-2px}
+
+/* ---- Compass (Life OS) ---- */
+.compass{padding:18px;overflow-y:auto;height:100%;max-width:760px;margin:0 auto}
+.cmp-head{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.cmp-title{font-size:20px;font-weight:800;color:var(--ink)}
+.cmp-sub{font-size:12px;color:var(--ink3)}
+.cmp-back{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--ink2);background:#EEF0F4;flex:0 0 34px}
+.wheel-wrap{padding:8px 0 10px}
+.ca-list{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.ca-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.ca-card.low{border-color:var(--green);box-shadow:0 0 0 1px rgba(52,199,89,.25)}
+.ca-ic{flex:0 0 22px;display:flex;align-items:center;justify-content:center}
+.ca-body{flex:1;min-width:0}
+.ca-top{display:flex;align-items:center;gap:8px}
+.ca-name{font-weight:700;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ca-flag{font-size:10px;font-weight:800;color:#2AA048;background:rgba(52,199,89,.14);padding:2px 7px;border-radius:8px;text-transform:uppercase;letter-spacing:.5px}
+.ca-score{font-size:12.5px;font-weight:800;color:var(--ink2)}
+.ca-score.big{font-size:15px;flex:0 0 auto}
+.ca-sub{font-size:11.5px;color:var(--ink3);margin:3px 0 6px}
+.ca-track{height:6px;border-radius:3px;background:#ECECEF;overflow:hidden}
+.ca-fill{height:100%;border-radius:3px;transition:width .3s}
+.ns-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}
+.ns-lbl{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--ink3);margin-bottom:6px}
+.ns-in{width:100%;border:none;outline:none;font-size:13px;color:var(--ink);font-style:italic;background:transparent}
+.gsec-h{font-size:11px;font-weight:800;letter-spacing:1px;color:var(--ink2);margin:14px 2px 8px}
+.gsec-empty{font-size:12px;color:var(--ink3);padding:2px 2px 8px}
+.gcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer}
+.gc-top{display:flex;align-items:center;gap:8px}
+.gc-title{font-weight:700;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc-pct{font-size:12.5px;font-weight:800;color:#2AA048;flex:0 0 auto}
+.gc-kr{font-size:11.5px;color:var(--ink2);margin:4px 0 6px}
+.gc-foot{font-size:11px;color:var(--ink3);display:flex;align-items:center;gap:4px;margin-top:6px}
+.cmp-snap{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin:14px 0 8px;padding:11px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:700;color:var(--ink2)}
+.kr-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+.kr-grid input{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;font-size:13px}
+.kr-hint{font-size:10.5px;color:var(--ink3);margin-top:6px}
+.cmp-toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#1C1C1E;color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;z-index:200;opacity:0;transition:opacity .2s;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.cmp-toast.on{opacity:1}
 </style>
 <!-- ===== PWA ===== -->
 <meta name="theme-color" content="#3B82F6">
@@ -497,7 +535,7 @@ const firebaseConfig = {
 };
 
 const CONFIGURED = !firebaseConfig.apiKey.startsWith("GANTI");
-window.__BUILD = 'sync-fix-2026-07-22-c';   // penanda build; cek di console: __BUILD
+window.__BUILD = 'lifeos-p1-2026-08-14';   // penanda build; cek di console: __BUILD
 console.log('[A31] build', window.__BUILD, 'configured=', CONFIGURED);
 let fbApp, fbAuth, fbDb, fbUser=null, dbRef=null, unsub=null;
 
@@ -677,11 +715,20 @@ const SEED_FOLDERS = [
 ];
 function seedTasks(){ return []; }  // mulai bersih; user bangun sendiri
 
+/* ---- Life OS: Wheel areas (objective progress via Key Results) ---- */
+const AREA_ICONS={Spiritual:'star',Family:'heart',Career:'briefcase',Financial:'money',Health:'yoga',Growth:'book',Social:'globe',Leisure:'leaf'};
+const AREA_COLORS={Spiritual:'#AF52DE',Family:'#FF375F',Career:'#3B82F6',Financial:'#34C759',Health:'#FF9500',Growth:'#5AC8FA',Social:'#0EA5E9',Leisure:'#30D158'};
+const AREA_NAMES=['Spiritual','Family','Career','Financial','Health','Growth','Social','Leisure'];
+const SEED_AREAS=AREA_NAMES.map((n,i)=>({id:'a-'+n.toLowerCase(),name:n,icon:AREA_ICONS[n]||'target',color:AREA_COLORS[n]||'#8E8E93',order:i,northStar:''}));
+
 let S = {
   folders: SEED_FOLDERS.map(f=>({...f})),
   tasks: [],
+  areas: SEED_AREAS.map(a=>({...a})),
+  goals: [],
+  reviews: [],
   ui: { view:'kanban', groupBy:'status', search:'', smart:'all', folder:null,
-        collapsed:{}, sort:{}, calYM:null, seeded:false, foldOpen:{} }
+        collapsed:{}, sort:{}, calYM:null, seeded:false, foldOpen:{}, compassArea:null }
 };
 
 /* ---------- Storage: Firebase Realtime DB (sync) + localStorage cache (offline) ---------- */
@@ -706,6 +753,10 @@ function hydrate(d){
   const arr = v => Array.isArray(v) ? v : (v && typeof v==='object' ? Object.values(v) : []);
   S.folders = (d.folders && (d.folders.length || Object.keys(d.folders).length)) ? arr(d.folders).map(normalizeFolder).filter(Boolean) : S.folders;
   S.tasks   = arr(d.tasks).map(normalizeTask).filter(Boolean);
+  S.areas   = (d.areas && (d.areas.length || Object.keys(d.areas).length)) ? arr(d.areas).map(normalizeArea).filter(Boolean) : S.areas;
+  if(!Array.isArray(S.areas) || !S.areas.length) S.areas = SEED_AREAS.map(a=>({...a}));
+  S.goals   = arr(d.goals).map(normalizeGoal).filter(Boolean);
+  S.reviews = arr(d.reviews).map(normalizeReview).filter(Boolean);
   S.ui      = Object.assign(S.ui, d.ui||{}, {search:''});
   if(!S.ui.foldOpen) S.ui.foldOpen={};
   migrateFolders();
@@ -730,6 +781,21 @@ function normalizeTask(t){
   if(!t.id) t.id = 't'+Math.random().toString(36).slice(2,9);
   return t;
 }
+function normalizeArea(a){ if(!a||typeof a!=='object'||!a.id) return null;
+  if(typeof a.name!=='string') a.name=String(a.name||'Area');
+  if(!a.icon) a.icon='target'; if(!a.color) a.color='#8E8E93';
+  if(typeof a.order!=='number') a.order=0; if(typeof a.northStar!=='string') a.northStar='';
+  return a; }
+function normalizeGoal(g){ if(!g||typeof g!=='object'||!g.id) return null;
+  if(typeof g.title!=='string') g.title=String(g.title||'');
+  if(g.horizon!=='annual'&&g.horizon!=='q90') g.horizon='annual';
+  if(!g.kr||typeof g.kr!=='object') g.kr={start:'',current:'',target:'',unit:''};
+  if(typeof g.weight!=='number') g.weight=Number(g.weight)||1;
+  if(!('areaId' in g)) g.areaId=null; if(!('parentId' in g)) g.parentId=null;
+  return g; }
+function normalizeReview(r){ if(!r||typeof r!=='object'||!r.id) return null;
+  r.areaScores=Array.isArray(r.areaScores)?r.areaScores:(r.areaScores&&typeof r.areaScores==='object'?Object.values(r.areaScores):[]);
+  return r; }
 // Backward-compat: if a saved board used the old flat folders (no parentId),
 // wrap them under a "New Life 3.0" group so nothing breaks.
 function migrateFolders(){
@@ -782,7 +848,7 @@ async function startSync(uid){
         try{
           hydrate(remote);               // hydrate menormalkan object→array & field hilang
           __remoteArrived=true;
-          writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+          writeLocalCache({folders:S.folders,tasks:S.tasks,areas:S.areas,goals:S.goals,reviews:S.reviews,ui:{...S.ui,search:''}});
           applyingRemote=false;
           __lastError='';
           setSync('saved');
@@ -802,7 +868,7 @@ async function startSync(uid){
           }
           applyingRemote=false;   // izinkan push berikutnya
           pushRemote();           // tulis isi awal ke server (pushRemote akan set status sendiri)
-          writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}});
+          writeLocalCache({folders:S.folders,tasks:S.tasks,areas:S.areas,goals:S.goals,reviews:S.reviews,ui:{...S.ui,search:''}});
           render();
         } else {
           applyingRemote=false;
@@ -827,7 +893,7 @@ function forceReloadFromServer(){
       if(d && (cnt(d.tasks)>0 || cnt(d.folders)>0)){
         window.__serverHadData=true;
         applyingRemote=true;
-        try{ hydrate(d); __remoteArrived=true; writeLocalCache({folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''}}); }
+        try{ hydrate(d); __remoteArrived=true; writeLocalCache({folders:S.folders,tasks:S.tasks,areas:S.areas,goals:S.goals,reviews:S.reviews,ui:{...S.ui,search:''}}); }
         finally{ applyingRemote=false; }
         __lastError=''; setSync('saved'); render();
         alert('Reloaded from server: '+S.tasks.length+' tasks, '+S.folders.length+' folders.');
@@ -853,7 +919,7 @@ function pushRemote(){
       return;
     }
   }
-  const payload={folders:S.folders,tasks:S.tasks,ui:{...S.ui,search:''},updatedAt:Date.now()};
+  const payload={folders:S.folders,tasks:S.tasks,areas:S.areas,goals:S.goals,reviews:S.reviews,ui:{...S.ui,search:''},updatedAt:Date.now()};
   writeLocalCache(payload);
   if(window.__FB && window.__FB.configured && CURRENT_UID){
     window.__FB.push(CURRENT_UID, payload)
@@ -1347,6 +1413,8 @@ function openModal(id){
     <div class="m-field"><label>Tags (comma-separated)</label>
       <input type="text" value="${esc(t.tags.join(', '))}"
         oninput="mSet('tags',this.value.split(',').map(s=>s.trim().replace(/^#/,'')).filter(Boolean))"></div>
+    <div class="m-field"><label>Link to target (Compass)</label>
+      <select onchange="mSet('goalId',this.value||null)">${goalOptions(t.goalId)}</select></div>
     <div class="m-field"><label>Sub-task</label>
       <div id="m-subs">${subRows(t)}</div>
       <button class="sub-add" onclick="mAddSub()">${ic('plus',14)} Add sub-task</button></div>
@@ -1597,7 +1665,163 @@ function eiDrop(e,q){
 }
 
 /* ---------- Sidebar / rail / tabbar ---------- */
-const VIEWS=[ ['dashboard','dashboard','Dashboard'], ['split','split','Kanban + Calendar'],
+/* ========================= COMPASS (Life OS · Phase 1) =========================
+   Objective progress: area score is DERIVED from Key Results of its goals.
+   No KR yet -> score is null ("not measured", shown neutral). */
+function areaById(id){ return (S.areas||[]).find(a=>a.id===id); }
+function goalsOfArea(aid){ return (S.goals||[]).filter(g=>g.areaId===aid); }
+function krPct(g){
+  if(!g||!g.kr) return null;
+  const k=g.kr; if([k.start,k.current,k.target].some(v=>v==null||v==='')) return null;
+  const st=Number(k.start), c=Number(k.current), t=Number(k.target);
+  if(!isFinite(st)||!isFinite(c)||!isFinite(t)) return null;
+  if(t===st) return c>=t?100:0;
+  return Math.max(0, Math.min(100, Math.round((c-st)/(t-st)*100)));
+}
+function areaProgress(aid){
+  const gs=goalsOfArea(aid).map(g=>({p:krPct(g),w:Number(g.weight)||1})).filter(x=>x.p!=null);
+  if(!gs.length) return null;
+  let sum=0,ws=0; gs.forEach(x=>{ sum+=x.p*x.w; ws+=x.w; });
+  return ws?Math.round(sum/ws):null;
+}
+function areaScore(aid){ const p=areaProgress(aid); return p==null?null:Math.round(p/10); }
+function tasksOfGoal(gid){ return S.tasks.filter(t=>t.goalId===gid); }
+function goalOptions(sel){
+  let out='<option value="">\u2014 none \u2014</option>';
+  (S.areas||[]).forEach(a=>{ const gs=goalsOfArea(a.id); if(!gs.length) return;
+    out+='<optgroup label="'+esc(a.name)+'">'+gs.map(g=>'<option value="'+g.id+'" '+(g.id===sel?'selected':'')+'>'+esc(g.title||'Untitled')+(g.horizon==='q90'?' (90d)':'')+'</option>').join('')+'</optgroup>'; });
+  return out;
+}
+
+function goCompass(){ S.ui.view='compass'; S.ui.compassArea=null; save(); render(); closeDrawer(); }
+function goToArea(aid){ S.ui.compassArea=aid||null; save(); render(); }
+function setNorthStar(aid,v){ const a=areaById(aid); if(a){ a.northStar=v; save(); } }
+function snapshotWheel(){
+  const areaScores=(S.areas||[]).map(a=>({areaId:a.id,score:areaScore(a.id)}));
+  mutate(()=>{ (S.reviews=S.reviews||[]).push({id:uid(),date:todayISO(),scope:'wheel',areaScores}); });
+  cmpToast('Wheel snapshot saved \u00b7 '+todayISO());
+}
+function cmpToast(msg){ const t=document.createElement('div'); t.className='cmp-toast'; t.textContent=msg;
+  document.body.appendChild(t); requestAnimationFrame(()=>t.classList.add('on'));
+  setTimeout(()=>{ t.classList.remove('on'); setTimeout(()=>t.remove(),260); },1600); }
+
+/* ---- Wheel radar (SVG) ---- */
+function wheelSVG(size){
+  const areas=(S.areas||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  const n=areas.length||8, cx=size/2, cy=size/2, R=size/2-30, PAD=56;
+  const ang=i=>(-90+(360/n)*i)*Math.PI/180;
+  const pt=(i,r)=>[cx+Math.cos(ang(i))*r, cy+Math.sin(ang(i))*r];
+  let rings='';
+  [0.25,0.5,0.75,1].forEach(f=>{ const pts=areas.map((_,i)=>pt(i,R*f).map(x=>x.toFixed(1)).join(',')).join(' ');
+    rings+='<polygon points="'+pts+'" fill="none" stroke="#E5E7EB" stroke-width="1"/>'; });
+  const spokes=areas.map((_,i)=>{ const q=pt(i,R); return '<line x1="'+cx+'" y1="'+cy+'" x2="'+q[0].toFixed(1)+'" y2="'+q[1].toFixed(1)+'" stroke="#E5E7EB" stroke-width="1"/>'; }).join('');
+  const frac=a=>{ const sc=areaScore(a.id); return sc==null?0.05:sc/10; };
+  const scorePts=areas.map((a,i)=>pt(i,R*frac(a)).map(x=>x.toFixed(1)).join(',')).join(' ');
+  const dots=areas.map((a,i)=>{ const sc=areaScore(a.id); const q=pt(i,R*frac(a));
+    return '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="3" fill="'+(sc==null?'#C7CBD1':'#34C759')+'"/>'; }).join('');
+  const labels=areas.map((a,i)=>{ const q=pt(i,R+16); const sc=areaScore(a.id);
+    const anchor=Math.abs(q[0]-cx)<6?'middle':(q[0]>cx?'start':'end');
+    return '<text x="'+q[0].toFixed(1)+'" y="'+(q[1]+3).toFixed(1)+'" text-anchor="'+anchor+'" font-size="10.5" font-weight="600" fill="#6B7280">'+esc(a.name)+'<tspan fill="#B0B3B8" font-weight="500"> '+(sc==null?'\u00b7':sc)+'</tspan></text>'; }).join('');
+  return '<svg viewBox="'+(-PAD)+' -8 '+(size+PAD*2)+' '+(size+16)+'" width="100%" style="display:block;margin:0 auto;max-width:'+(size+40)+'px">'
+    +rings+spokes
+    +'<polygon points="'+scorePts+'" fill="#34C759" fill-opacity="0.16" stroke="#34C759" stroke-width="2" stroke-linejoin="round"/>'
+    +dots+labels+'</svg>';
+}
+
+/* ---- Compass view ---- */
+function renderCompass(el){
+  if(S.ui.compassArea){ return renderCompassArea(el, S.ui.compassArea); }
+  const areas=(S.areas||[]).slice().sort((a,b)=>(a.order||0)-(b.order||0));
+  const rows=areas.map(a=>({a, p:areaProgress(a.id), s:areaScore(a.id)}));
+  const lowest=rows.filter(m=>m.s!=null).sort((x,y)=>x.s-y.s)[0];
+  const cards=rows.map(m=>{ const a=m.a, p=m.p, s=m.s, gc=goalsOfArea(a.id).length;
+    const isLow=lowest&&lowest.a.id===a.id;
+    return '<button class="ca-card '+(isLow?'low':'')+'" onclick="goToArea(\''+a.id+'\')">'
+      +'<span class="ca-ic" style="color:'+a.color+'">'+ic(a.icon,18)+'</span>'
+      +'<div class="ca-body"><div class="ca-top"><span class="ca-name">'+esc(a.name)+'</span>'
+      +(isLow?'<span class="ca-flag">focus</span>':'')
+      +'<span class="ca-score">'+(s==null?'\u2014':s+'/10')+'</span></div>'
+      +'<div class="ca-sub">'+gc+' target \u00b7 '+(p==null?'not measured':p+'% objective')+'</div>'
+      +'<div class="ca-track"><div class="ca-fill" style="width:'+(p==null?0:p)+'%;background:'+a.color+'"></div></div></div>'
+      +ic('chevRight',16)+'</button>'; }).join('');
+  el.innerHTML='<div class="compass">'
+    +'<div class="cmp-head"><div><div class="cmp-title">Compass</div>'
+    +'<div class="cmp-sub">Where you are \u00b7 what to do next</div></div></div>'
+    +'<div class="wheel-wrap">'+wheelSVG(300)+'</div>'
+    +'<div class="ca-list">'+cards+'</div>'
+    +'<button class="cmp-snap" onclick="snapshotWheel()">'+ic('summary',15)+' Save Wheel snapshot</button>'
+    +'</div>';
+}
+function renderCompassArea(el, aid){
+  const a=areaById(aid); if(!a){ S.ui.compassArea=null; return renderCompass(el); }
+  const s=areaScore(aid);
+  const gs=goalsOfArea(aid);
+  const annual=gs.filter(g=>g.horizon==='annual');
+  const q90=gs.filter(g=>g.horizon==='q90');
+  const goalCard=g=>{ const pct=krPct(g), kr=g.kr||{}, nt=tasksOfGoal(g.id).length;
+    const krline=(kr.start!==''&&kr.start!=null&&kr.target!==''&&kr.target!=null)
+      ? 'KR \u00b7 '+esc(String(kr.start))+' \u2192 '+esc(String(kr.target))+(kr.unit?(' '+esc(kr.unit)):'')+(kr.current!==''&&kr.current!=null?('  (now '+esc(String(kr.current))+')'):'')
+      : 'KR not set';
+    return '<div class="gcard" onclick="openGoal(\''+g.id+'\')"><div class="gc-top">'
+      +'<span class="gc-title">'+esc(g.title||'Untitled')+'</span>'
+      +'<span class="gc-pct">'+(pct==null?'\u2014':pct+'%')+'</span></div>'
+      +'<div class="gc-kr">'+krline+'</div>'
+      +'<div class="ca-track"><div class="ca-fill" style="width:'+(pct==null?0:pct)+'%;background:'+a.color+'"></div></div>'
+      +'<div class="gc-foot">'+ic('all',12)+' '+nt+' task linked</div></div>'; };
+  const section=(title,list)=>'<div class="gsec-h">'+title+'</div>'+(list.length?list.map(goalCard).join(''):'<div class="gsec-empty">None yet</div>');
+  el.innerHTML='<div class="compass">'
+    +'<div class="cmp-head"><button class="cmp-back" onclick="goToArea(null)">'+ic('chevLeft',18)+'</button>'
+    +'<div style="flex:1"><div class="cmp-title" style="display:flex;align-items:center;gap:8px">'
+    +'<span style="color:'+a.color+'">'+ic(a.icon,20)+'</span>'+esc(a.name)+'</div></div>'
+    +'<span class="ca-score big">'+(s==null?'\u2014':s+' / 10')+'</span></div>'
+    +'<div class="ns-card"><div class="ns-lbl">NORTH STAR \u00b7 5 YEAR</div>'
+    +'<input class="ns-in" value="'+esc(a.northStar||'')+'" placeholder="Who I want to become in this area\u2026" onchange="setNorthStar(\''+a.id+'\',this.value)"></div>'
+    +section('TARGET \u00b7 ANNUAL', annual)
+    +section('MILESTONE \u00b7 90-DAY', q90)
+    +'<button class="cmp-snap" onclick="openGoal(null,\''+a.id+'\')">'+ic('plus',15)+' New target</button>'
+    +'</div>';
+}
+
+/* ---- Goal editor (modal) ---- */
+let goalId=null;
+function openGoal(id, presetArea){
+  let g;
+  if(id){ g=(S.goals||[]).find(x=>x.id===id); if(!g) return; }
+  else { g={id:uid(), areaId:presetArea||((S.areas[0]||{}).id||null), horizon:'annual', parentId:null, title:'', why:'', weight:1, kr:{start:'',current:'',target:'',unit:''}};
+         mutate(()=>{ (S.goals=S.goals||[]).push(g); }); }
+  goalId=g.id;
+  const kr=g.kr||{};
+  const areaOpts=(S.areas||[]).map(a=>'<option value="'+a.id+'" '+(a.id===g.areaId?'selected':'')+'>'+esc(a.name)+'</option>').join('');
+  const ov=document.createElement('div'); ov.id='overlay';
+  ov.onclick=e=>{ if(e.target===ov) closeGoal(); };
+  ov.innerHTML='<div class="modal"><h3>Target <button class="x" onclick="closeGoal()">'+ic('close',16)+'</button></h3>'
+    +'<div class="m-field"><label>Title</label><input type="text" value="'+esc(g.title)+'" oninput="gSet(\'title\',this.value)"></div>'
+    +'<div class="m-grid"><div class="m-field"><label>Area</label><select onchange="gSet(\'areaId\',this.value)">'+areaOpts+'</select></div>'
+    +'<div class="m-field"><label>Horizon</label><select onchange="gSet(\'horizon\',this.value)">'
+    +'<option value="annual" '+(g.horizon==='annual'?'selected':'')+'>Annual</option>'
+    +'<option value="q90" '+(g.horizon==='q90'?'selected':'')+'>90-day milestone</option></select></div></div>'
+    +'<div class="m-field"><label>Why it matters</label><input type="text" value="'+esc(g.why||'')+'" oninput="gSet(\'why\',this.value)"></div>'
+    +'<div class="m-field"><label>Key Result (measurable)</label><div class="kr-grid">'
+    +'<input type="number" step="any" placeholder="start" value="'+(kr.start===''||kr.start==null?'':esc(String(kr.start)))+'" oninput="gKR(\'start\',this.value)">'
+    +'<input type="number" step="any" placeholder="now" value="'+(kr.current===''||kr.current==null?'':esc(String(kr.current)))+'" oninput="gKR(\'current\',this.value)">'
+    +'<input type="number" step="any" placeholder="target" value="'+(kr.target===''||kr.target==null?'':esc(String(kr.target)))+'" oninput="gKR(\'target\',this.value)">'
+    +'<input type="text" placeholder="unit" value="'+esc(kr.unit||'')+'" oninput="gKR(\'unit\',this.value)"></div>'
+    +'<div class="kr-hint">Progress = (now \u2212 start) / (target \u2212 start)</div></div>'
+    +'<div class="foot"><button class="btn-danger" onclick="gDelete()">Delete target</button>'
+    +'<span style="font-size:11px;color:var(--ink3)">Saved automatically</span></div></div>';
+  document.body.appendChild(ov);
+}
+function gGoal(){ return (S.goals||[]).find(x=>x.id===goalId); }
+function gSet(k,v){ const g=gGoal(); if(!g) return; g[k]=v; save(); }
+function gKR(k,v){ const g=gGoal(); if(!g) return; g.kr=g.kr||{}; g.kr[k]=v; save(); }
+function gDelete(){ mutate(()=>{ S.goals=(S.goals||[]).filter(x=>x.id!==goalId);
+  S.tasks.forEach(t=>{ if(t.goalId===goalId) t.goalId=null; }); }); closeGoal(); }
+function closeGoal(){ const g=gGoal();
+  if(g){ const hasTitle=g.title&&g.title.trim(); const hasKR=g.kr&&g.kr.target!==''&&g.kr.target!=null;
+    if(!hasTitle&&!hasKR){ S.goals=(S.goals||[]).filter(x=>x.id!==g.id); save(); } }
+  const ov=document.getElementById('overlay'); if(ov) ov.remove(); goalId=null; render(); }
+
+const VIEWS=[ ['compass','compass','Compass'], ['dashboard','dashboard','Dashboard'], ['split','split','Kanban + Calendar'],
   ['calendar','calendar','Calendar'], ['timeline','timeline','Timeline'], ['eisenhower','matrix','Eisenhower Matrix'] ];
 const SHORTCUTS=[ ['all','all','All Tasks'], ['today','today','Today'], ['tomorrow','sunrise','Tomorrow'],
   ['next7','week','Next 7 Days'] ];
@@ -1607,7 +1831,7 @@ function goSmart(k){ S.ui.smart=k; S.ui.folder=null;
   if(!['kanban','split'].includes(S.ui.view)&&S.ui.view!=='calendar') S.ui.view='kanban';
   if(S.ui.view==='split'&&isMobile()) S.ui.view='kanban';
   save(); render(); closeDrawer(); }
-function goView(v){ S.ui.view=v; save(); render(); closeDrawer(); }
+function goView(v){ if(v==='compass') S.ui.compassArea=null; S.ui.view=v; save(); render(); closeDrawer(); }
 function goFolder(fid){ S.ui.folder=(S.ui.folder===fid?null:fid); S.ui.smart='all'; save(); render(); closeDrawer(); }
 
 function renderSidebar(){
@@ -1668,6 +1892,7 @@ function renderRail(){
     }).join('') +
     `<button class="rail-btn ${S.ui.view==='calendar'?'active':''}" onclick="goView('calendar')">${ic('calendar',20)}<span class="tip">Calendar</span></button>
      <button class="rail-btn ${S.ui.view==='eisenhower'?'active':''}" onclick="goView('eisenhower')">${ic('matrix',20)}<span class="tip">Eisenhower</span></button>
+     <button class="rail-btn ${S.ui.view==='compass'?'active':''}" onclick="goView('compass')">${ic('compass',20)}<span class="tip">Compass</span></button>
      <button class="rail-btn" onclick="document.getElementById('search').focus()">${ic('search',20)}<span class="tip">Search</span></button>
      <div class="spacer"></div>
      <button class="rail-btn ${S.ui.view==='dashboard'?'active':''}" onclick="goView('dashboard')">${ic('dashboard',20)}<span class="tip">Dashboard</span></button>`;
@@ -1713,7 +1938,7 @@ document.addEventListener('touchstart',e=>{ touchX0 = e.touches[0].clientX<24 ? 
 document.addEventListener('touchmove',e=>{ if(touchX0!==null && e.touches[0].clientX-touchX0>50){ openDrawer(); touchX0=null; } },{passive:true});
 
 /* ---------- Top bar ---------- */
-const VIEW_TITLES={kanban:'Kanban',split:'Kanban + Calendar',dashboard:'Dashboard',
+const VIEW_TITLES={compass:'Compass',kanban:'Kanban',split:'Kanban + Calendar',dashboard:'Dashboard',
   calendar:'Calendar',timeline:'Timeline',eisenhower:'Eisenhower Matrix'};
 function renderTopbar(){
   const smartLbl={all:'',today:' · Today',tomorrow:' · Tomorrow',next7:' · Next 7 Days',inbox:' · Inbox'}[S.ui.smart]||'';
@@ -1755,6 +1980,7 @@ function _renderInner(){
   renderRail(); renderSidebar(); renderTabbar(); renderTopbar();
   const c=document.getElementById('content');
   switch(S.ui.view){
+    case 'compass': renderCompass(c); break;
     case 'dashboard': renderDash(c); break;
     case 'calendar': renderCalendar(c,false); break;
     case 'split': renderSplit(c); break;
